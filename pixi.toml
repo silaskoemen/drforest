@@ -39,6 +39,10 @@ twine = ">=6"
 build-wheel = "python -m build --no-isolation ."
 check-wheel = "twine check dist/*"
 
+[feature.dev.dependencies]
+ipykernel = "*"
+pip = "*"
+
 [feature.lint.dependencies]
 pre-commit = "*"
 ruff = "*"
@@ -61,7 +65,7 @@ python = "3.13.*"
 python = "3.14.*"
 
 [environments]
-default = ["test", "build", "lint"]
+default = ["test", "build", "lint", "dev"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 py313 = ["py313", "test"]
