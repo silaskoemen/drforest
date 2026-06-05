@@ -20,8 +20,9 @@ this assembly stays pure-Python/SciPy across the Phase-3 swap.
 from collections.abc import Sequence
 
 import numpy as np
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, issparse
 
+from drforest.features.rff import GaussianRFF
 from drforest.tree import DecisionTree
 
 
@@ -87,3 +88,78 @@ def assemble_weights(trees: Sequence[DecisionTree], X_test: np.ndarray, n_train:
     )
     W.sum_duplicates()  # the same atom across trees accumulates into one entry
     return W
+
+
+def _as_csr_weights(W: object) -> csr_matrix:
+    if not issparse(W):
+        W = csr_matrix(np.asarray(W, dtype=np.float64))
+    else:
+        W = csr_matrix(W)
+    if W.ndim != 2:
+        raise ValueError(f"W must be 2-D; got shape {W.shape}")
+    if W.data.size and not np.isfinite(W.data).all():
+        raise ValueError("W contains non-finite weights")
+    if W.data.size and (W.data < 0.0).any():
+        raise ValueError("W contains negative weights")
+    row_sums = np.asarray(W.sum(axis=1)).ravel()
+    if not (row_sums > 0.0).all():
+        raise ValueError("every row of W must have positive total weight")
+    return W
+
+
+def _normalize_rows(W: csr_matrix) -> csr_matrix:
+    row_sums = np.asarray(W.sum(axis=1)).ravel()
+    return W.multiply((1.0 / row_sums)[:, None]).tocsr()
+
+
+def _as_response_matrix(Y: np.ndarray, n_rows: int) -> np.ndarray:
+    Y = np.asarray(Y, dtype=np.float64)
+    if Y.ndim != 2:
+        raise ValueError(f"Y must be 2-D (n, d); got shape {Y.shape}")
+    if Y.shape[0] != n_rows:
+        raise ValueError(f"W has {n_rows} columns but Y has {Y.shape[0]} rows")
+    if Y.shape[1] == 0:
+        raise ValueError("Y has zero response dimensions (d == 0)")
+    if not np.isfinite(Y).all():
+        raise ValueError("Y contains non-finite values")
+    return Y
+
+
+def _rff_embedding(W: csr_matrix, Y: np.ndarray, rff: GaussianRFF) -> np.ndarray:
+    Y = _as_response_matrix(Y, W.shape[1])
+    return W @ rff.transform(Y)
+
+
+def n_eff(W: object) -> np.ndarray:
+    """Participation ratio ``1 / Σ_i w_i²`` for each normalized row of ``W``."""
+    W_csr = _normalize_rows(_as_csr_weights(W))
+    sum_sq = np.asarray(W_csr.multiply(W_csr).sum(axis=1)).ravel()
+    return 1.0 / sum_sq
+
+
+def embedding_norm_sq(W: object, Y: np.ndarray, rff: GaussianRFF) -> np.ndarray:
+    """RFF estimate of ``‖Σ_i w_i φ(y_i)‖²`` for each row of ``W``."""
+    W_csr = _normalize_rows(_as_csr_weights(W))
+    embedding = _rff_embedding(W_csr, Y, rff)
+    norm_sq = np.sum(np.abs(embedding) ** 2, axis=1) / rff.n_features
+    return np.clip(np.real(norm_sq), 0.0, 1.0)
+
+
+def mmd_to_target(W: object, W_target: object, Y: np.ndarray, rff: GaussianRFF) -> np.ndarray:
+    """RFF estimate of MMD² between rows of ``W`` and target weights.
+
+    ``W_target`` may contain one row, which is broadcast to every row of ``W``,
+    or the same number of rows as ``W``.
+    """
+    W_csr = _normalize_rows(_as_csr_weights(W))
+    target_csr = _normalize_rows(_as_csr_weights(W_target))
+    if target_csr.shape[1] != W_csr.shape[1]:
+        raise ValueError(f"W_target has {target_csr.shape[1]} columns but W has {W_csr.shape[1]}")
+    if target_csr.shape[0] not in (1, W_csr.shape[0]):
+        raise ValueError(f"W_target must have 1 or {W_csr.shape[0]} rows; got {target_csr.shape[0]}")
+
+    embedding = _rff_embedding(W_csr, Y, rff)
+    target_embedding = _rff_embedding(target_csr, Y, rff)
+    diff = embedding - target_embedding[0] if target_csr.shape[0] == 1 else embedding - target_embedding
+    mmd_sq = np.sum(np.abs(diff) ** 2, axis=1) / rff.n_features
+    return np.maximum(np.real(mmd_sq), 0.0)
