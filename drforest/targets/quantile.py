@@ -3,9 +3,8 @@
 import numpy as np
 
 from drforest.targets._validation import (
-    as_csr_weights,
+    as_materialized_csr_weights,
     as_response_matrix,
-    normalize_rows,
 )
 
 
@@ -29,9 +28,9 @@ def weighted_quantile(W: object, Y: np.ndarray, quantiles: np.ndarray) -> np.nda
 
     The result has shape ``(n_test, d, n_quantiles)``. Quantiles use the inverse
     empirical CDF convention: the smallest response value whose cumulative weight
-    is at least ``q``.
+    is at least ``q``. A :class:`MixtureWeights` input is materialized first.
     """
-    W_csr = normalize_rows(as_csr_weights(W))
+    W_csr = as_materialized_csr_weights(W)
     Y = as_response_matrix(Y, W_csr.shape[1])
     qs = _validate_quantiles(quantiles)
 

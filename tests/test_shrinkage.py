@@ -60,7 +60,7 @@ def test_shrink_preserves_simplex_and_uses_marginal_convex_combination():
     rff = _rff(Y)
 
     result = shrink(W, Y, rff=rff)
-    got = result.weights.toarray()
+    got = result.weights.to_csr().toarray()
     expected = (1.0 - result.alpha)[:, None] * W.toarray() + result.alpha[:, None] * 0.25
 
     assert got.shape == W.shape
@@ -78,7 +78,7 @@ def test_shrink_identical_conditional_and_target_sets_alpha_to_one():
     result = shrink(W, Y, rff=rff)
 
     assert result.alpha[0] == pytest.approx(1.0)
-    assert np.allclose(result.weights.toarray(), W.toarray())
+    assert np.allclose(result.weights.to_csr().toarray(), W.toarray())
 
 
 def test_shrink_large_effective_sample_drives_alpha_down():
@@ -170,7 +170,7 @@ def test_step7_mmd_rff_forest_raw_vs_marginal_shrinkage_signal():
 
     assert W.shape == result.weights.shape == (Y_test.shape[0], Y.shape[0])
     assert np.allclose(np.asarray(W.sum(axis=1)).ravel(), 1.0)
-    assert np.allclose(np.asarray(result.weights.sum(axis=1)).ravel(), 1.0)
+    assert np.allclose(np.asarray(result.weights.to_csr().sum(axis=1)).ravel(), 1.0)
     assert np.all((0.0 <= result.alpha) & (result.alpha <= 1.0))
     assert result.alpha.mean() > 0.0
     assert set(raw) == set(shrunk) == {"rmse", "crps"}

@@ -7,6 +7,7 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from drforest.features.rff import GaussianRFF
+from drforest.mixture import MixtureWeights
 from drforest.weights import (
     _as_csr_weights,
     _normalize_rows,
@@ -20,7 +21,7 @@ from drforest.weights import (
 class ShrinkageResult:
     """Shrunk weights plus the row-wise intensity used to form them."""
 
-    weights: csr_matrix
+    weights: MixtureWeights
     alpha: np.ndarray
     target_weights: csr_matrix
 
@@ -33,21 +34,6 @@ def marginal_target(n_train: int) -> csr_matrix:
     if n_train < 1:
         raise ValueError(f"n_train must be >= 1; got {n_train}")
     return csr_matrix(np.full((1, n_train), 1.0 / n_train, dtype=np.float64))
-
-
-def _marginal_shrunk_weights(W: csr_matrix, alpha: np.ndarray) -> csr_matrix:
-    n_test, n_train = W.shape
-    retained = W.multiply((1.0 - alpha)[:, None]).tocsr()
-
-    rows = np.repeat(np.arange(n_test, dtype=np.int64), n_train)
-    cols = np.tile(np.arange(n_train, dtype=np.int64), n_test)
-    data = np.repeat(alpha / n_train, n_train)
-    target_part = csr_matrix((data, (rows, cols)), shape=W.shape)
-
-    out = retained + target_part
-    out.sum_duplicates()
-    out.eliminate_zeros()
-    return out
 
 
 def shrink(
@@ -79,7 +65,7 @@ def shrink(
     alpha = np.clip(alpha, 0.0, 1.0)
 
     return ShrinkageResult(
-        weights=_marginal_shrunk_weights(W_csr, alpha),
+        weights=MixtureWeights(base=W_csr, alpha=alpha, target=target_weights),
         alpha=alpha,
         target_weights=target_weights,
     )

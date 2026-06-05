@@ -3,6 +3,8 @@
 import numpy as np
 from scipy.sparse import csr_matrix, issparse
 
+from drforest.mixture import MixtureWeights
+
 
 def as_csr_weights(W: object) -> csr_matrix:
     """Return ``W`` as CSR and reject malformed weight matrices."""
@@ -41,3 +43,24 @@ def normalize_rows(W: csr_matrix) -> csr_matrix:
     row_sums = np.asarray(W.sum(axis=1)).ravel()
     inv = 1.0 / row_sums
     return W.multiply(inv[:, None]).tocsr()
+
+
+def as_weight_operator(W: object) -> MixtureWeights | csr_matrix:
+    """Return a ``MixtureWeights`` as-is, else a row-normalized CSR matrix."""
+    if isinstance(W, MixtureWeights):
+        return W
+    return normalize_rows(as_csr_weights(W))
+
+
+def weights_apply(op: MixtureWeights | csr_matrix, M: np.ndarray) -> np.ndarray:
+    """Linear action ``op @ M`` for either representation, without densifying."""
+    if isinstance(op, MixtureWeights):
+        return op.apply(M)
+    return op @ M
+
+
+def as_materialized_csr_weights(W: object) -> csr_matrix:
+    """Return ``W`` as an explicit row-normalized CSR, materializing a mixture."""
+    if isinstance(W, MixtureWeights):
+        return W.to_csr()
+    return normalize_rows(as_csr_weights(W))
