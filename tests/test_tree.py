@@ -8,7 +8,13 @@ from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
 from drforest.features.rff import fixed_bandwidth
 from drforest.rng import RngStreams
-from drforest.tree import DecisionTree, TreeParams, build_tree
+from drforest.tree import (
+    DecisionTree,
+    TreeParams,
+    _threshold_bounds,
+    _validate_split_contract,
+    build_tree,
+)
 
 
 class _FixedSplitCriterion(Criterion):
@@ -17,7 +23,7 @@ class _FixedSplitCriterion(Criterion):
     def __init__(self, split: Split):
         self._split = split
 
-    def best_split(self, X, Y, features, rng, min_leaf):
+    def best_split(self, X, Y, features, rng, min_leaf, threshold_bounds):
         return self._split
 
 
@@ -179,6 +185,43 @@ def test_leaf_node_consistency():
 
 
 # ---- the empty-honest-leaf guarantee (finding 1 / 5) -------------------------
+
+
+def test_threshold_bounds_are_x_only_support_constraint():
+    # lo = v_{k-1}, hi = v_{n_L-k} of each candidate's leaf-sample column.
+    X = np.arange(20, dtype=float).reshape(20, 1)  # X[:,0] = 0..19
+    l_idx = np.arange(20)
+    bounds = _threshold_bounds(X, l_idx, np.array([0]), min_samples_leaf=5)
+    assert bounds.shape == (1, 2)
+    assert bounds[0, 0] == 4.0  # v_4
+    assert bounds[0, 1] == 15.0  # v_{20-5}
+
+
+def test_contract_check_rejects_leaf_infeasible_split():
+    # Split sample balanced at t=0 (3|3), but leaf sample 1|3 -> contract breach.
+    X = np.zeros((10, 1))
+    X[[0, 1, 2], 0] = -1.0
+    X[[3, 4, 5], 0] = 1.0  # s_idx rows
+    X[[6], 0] = -1.0
+    X[[7, 8, 9], 0] = 1.0  # l_idx rows
+    split = Split(feature=0, threshold=0.0, score=1.0)
+    with pytest.raises(ValueError, match="leaf-sample children"):
+        _validate_split_contract(
+            split,
+            1,
+            min_child=3,
+            X=X,
+            s_idx=np.array([0, 1, 2, 3, 4, 5]),
+            l_idx=np.array([6, 7, 8, 9]),
+            min_samples_leaf=3,
+        )
+
+
+def test_honest_tree_splits_on_clear_signal():
+    # With the leaf-feasibility band, a clear planted shift is not stumped away.
+    X, Y = _planted_data(seed=32, n=160)
+    tree = _build(X, Y, CartCriterion(), TreeParams())  # honest defaults
+    assert tree.n_leaves >= 2
 
 
 @pytest.mark.parametrize("seed", [0, 7, 32, 101, 2024])

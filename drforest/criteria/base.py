@@ -1,8 +1,9 @@
 """Split-criterion interface and a reusable mean-embedding sweep.
 
 The splitting-geometry axis is pluggable, and the *true* contract is just
-``Criterion.best_split(X, Y, features, rng, min_leaf) -> Split | None``
-(spec A.2: evaluate all cutoffs of a candidate variable in ``O(B · n_P)``).
+``Criterion.best_split(X, Y, features, rng, min_leaf, threshold_bounds) -> Split | None``
+(spec A.2: evaluate all cutoffs of a candidate variable in ``O(B · n_P)``;
+``threshold_bounds`` restricts the admissible split threshold per feature).
 
 Several — but not all — criteria reduce to one shared computation: scoring a
 split (L | R) by the between-group scatter of a per-point embedding
@@ -71,7 +72,14 @@ def validate_split_inputs(X: np.ndarray, Y: np.ndarray, features: Sequence[int])
 
 
 class Criterion(ABC):
-    """A pluggable split criterion (the splitting-geometry axis)."""
+    """A pluggable split criterion (the splitting-geometry axis).
+
+    Implementations must be **stateless / reentrant**: a single configured
+    criterion instance is shared across every tree and node of a forest, so
+    ``best_split`` must not mutate instance state, and all per-node randomness
+    (RFF frequencies, projections) must be drawn from the passed ``rng`` — never
+    cached on ``self``.
+    """
 
     @abstractmethod
     def best_split(
@@ -81,12 +89,33 @@ class Criterion(ABC):
         features: Sequence[int],
         rng: Generator,
         min_leaf: int,
+        threshold_bounds: np.ndarray | None,
     ) -> Split | None:
-        """Best split over ``features`` (mtry candidates), or None if none valid."""
+        """Best split over ``features`` (mtry candidates), or None if none valid.
+
+        ``threshold_bounds`` constrains the admissible split threshold per
+        candidate: it is aligned with ``features`` (shape ``(len(features), 2)``,
+        columns ``(lo, hi)``), and a returned split on ``features[j]`` must
+        satisfy ``lo_j <= threshold < hi_j`` (strict upper, matching ``x <= t``
+        routing). ``lo >= hi`` means that feature admits no split. ``None`` means
+        unconstrained. Honouring the band is part of the contract — every
+        axis-aligned criterion searches inside the same threshold domain.
+        """
 
 
-def _best_split_on_feature(x: np.ndarray, Psi: np.ndarray, scale: float, min_leaf: int) -> tuple[float, float] | None:
+def _best_split_on_feature(
+    x: np.ndarray, Psi: np.ndarray, scale: float, min_leaf: int, lo: float, hi: float
+) -> tuple[float, float] | None:
     """Best (threshold, score) for one feature, or None if no valid split.
+
+    A split after sorted positions ``i | i+1`` is the *interval* of thresholds
+    ``xs[i] <= t < xs[i+1]`` (any ``t`` there gives the same partition under
+    ``x <= t`` routing). It is admissible iff that interval intersects the
+    leaf-feasibility band ``[lo, hi)`` — i.e. ``max(xs[i], lo) < min(xs[i+1], hi)``
+    — *not* merely when the midpoint lies in the band. The returned threshold is
+    the midpoint of the feasible sub-interval ``[lower, upper)``, which reduces
+    to the usual gap midpoint when the band does not bind. Scoring uses the split
+    sample alone; the band only restricts *which* cutpoints are eligible.
 
     Phase-1 implementation note: ``cumsum`` materialises every left-prefix sum
     ``S_L`` at once. That is a deliberate NumPy vectorisation, *not* the
@@ -115,13 +144,16 @@ def _best_split_on_feature(x: np.ndarray, Psi: np.ndarray, scale: float, min_lea
     sq_norm = np.einsum("ij,ij->i", sq_norm, sq_norm)  # Σ_b |Δ_b|²
     scores = scale * (n_l * n_r) / (n * n) * sq_norm
 
-    valid = (xs[:-1] != xs[1:]) & (n_l >= min_leaf) & (n_r >= min_leaf)
+    # Feasible threshold sub-interval = gap interval [xs[i], xs[i+1]) ∩ band [lo, hi).
+    lower = np.maximum(xs[:-1], lo)
+    upper = np.minimum(xs[1:], hi)
+    valid = (xs[:-1] != xs[1:]) & (n_l >= min_leaf) & (n_r >= min_leaf) & (lower < upper)
     if not valid.any():
         return None
 
     scores = np.where(valid, scores, -np.inf)
     i = int(np.argmax(scores))
-    threshold = 0.5 * (xs[i] + xs[i + 1])
+    threshold = 0.5 * (lower[i] + upper[i])  # interior of [lower, upper): keeps both bands
     return float(threshold), float(scores[i])
 
 
@@ -148,15 +180,23 @@ class MeanEmbeddingCriterion(Criterion):
         features: Sequence[int],
         rng: Generator,
         min_leaf: int,
+        threshold_bounds: np.ndarray | None,
     ) -> Split | None:
         validate_split_inputs(X, Y, features)
         if min_leaf < 1:
             raise ValueError(f"min_leaf must be >= 1; got {min_leaf}")
+        if threshold_bounds is not None:
+            threshold_bounds = np.asarray(threshold_bounds, dtype=np.float64)
+            if threshold_bounds.shape != (len(features), 2):
+                raise ValueError(
+                    f"threshold_bounds must have shape ({len(features)}, 2); " f"got {threshold_bounds.shape}"
+                )
         Psi = self.embed(Y, rng)
         best: Split | None = None
-        for f in features:
+        for j, f in enumerate(features):
             idx = _as_feature_index(f)
-            found = _best_split_on_feature(X[:, idx], Psi, self.scale, min_leaf)
+            lo, hi = (-np.inf, np.inf) if threshold_bounds is None else threshold_bounds[j]
+            found = _best_split_on_feature(X[:, idx], Psi, self.scale, min_leaf, lo, hi)
             if found is None:
                 continue
             threshold, score = found
