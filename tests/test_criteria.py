@@ -1,0 +1,169 @@
+from typing import cast
+
+import numpy as np
+import pytest
+
+from drforest.criteria.base import _best_split_on_feature
+from drforest.criteria.cart import CartCriterion
+from drforest.criteria.mmd_rff import MmdRffCriterion
+from drforest.features.rff import fixed_bandwidth, sample_rff
+
+
+def brute_best_on_feature(x, Psi, scale, min_leaf):
+    """O(n²) reference: evaluate every distinct-value split directly."""
+    n = len(x)
+    order = np.argsort(x, kind="stable")
+    xs, psi = x[order], Psi[order]
+    best = None
+    for i in range(n - 1):
+        n_l = i + 1
+        n_r = n - n_l
+        if xs[i] == xs[i + 1] or n_l < min_leaf or n_r < min_leaf:
+            continue
+        diff = psi[:n_l].mean(0) - psi[n_l:].mean(0)
+        score = scale * (n_l * n_r) / (n * n) * np.sum(np.abs(diff) ** 2)
+        threshold = 0.5 * (xs[i] + xs[i + 1])
+        if best is None or score > best[1]:
+            best = (threshold, score)
+    return best
+
+
+def test_streaming_matches_brute_force_mmd():
+    rng = np.random.default_rng(0)
+    n, dim = 60, 2
+    x = rng.normal(size=n)
+    Y = rng.normal(size=(n, dim))
+    rff = sample_rff(dim, 64, 1.0, rng)
+    Psi = rff.transform(Y)
+    scale = 1.0 / rff.n_features
+
+    streamed = _best_split_on_feature(x, Psi, scale, min_leaf=5)
+    brute = brute_best_on_feature(x, Psi, scale, min_leaf=5)
+    assert streamed is not None and brute is not None
+    assert np.isclose(streamed[0], brute[0])
+    assert np.isclose(streamed[1], brute[1])
+
+
+def test_scaled_score_equals_kernel_mmd():
+    """The RFF score equals the O(n²) kernel-matrix MMD for the *same* ω."""
+    rng = np.random.default_rng(3)
+    n, dim = 40, 2
+    Y = rng.normal(size=(n, dim))
+    rff = sample_rff(dim, 128, 0.8, rng)
+    Psi = rff.transform(Y)
+    B = rff.n_features
+
+    # Empirical RFF kernel matrix K_ij = (1/B) Σ_b φ̃(y_i) conj(φ̃(y_j)).
+    K = (Psi @ Psi.conj().T).real / B
+    split = n // 2
+    left, right = slice(0, split), slice(split, n)
+    n_l, n_r = split, n - split
+    mmd_sq = K[left, left].mean() + K[right, right].mean() - 2 * K[left, right].mean()
+    expected = (n_l * n_r) / (n * n) * mmd_sq
+
+    diff = Psi[left].mean(0) - Psi[right].mean(0)
+    got = (1.0 / B) * (n_l * n_r) / (n * n) * np.sum(np.abs(diff) ** 2)
+    assert np.isclose(got, expected)
+
+
+def test_cart_reproduces_variance_reduction_split():
+    """Identity-kernel criterion must pick the variance-reduction CART split."""
+    rng = np.random.default_rng(7)
+    n, p, dim = 80, 4, 3
+    X = rng.normal(size=(n, p))
+    Y = rng.normal(size=(n, dim))
+    # Plant signal so a unique best split exists.
+    Y += (X[:, 2] > 0.0)[:, None] * np.array([3.0, -2.0, 1.0])
+
+    min_leaf = 5
+    features = list(range(p))
+    best = CartCriterion().best_split(X, Y, features, rng=np.random.default_rng(0), min_leaf=min_leaf)
+
+    # Independent between-group-SS argmax over all features and thresholds.
+    total_ss = np.sum((Y - Y.mean(0)) ** 2)
+    ref_feat, ref_thr, ref_red = None, None, -np.inf
+    for f in features:
+        order = np.argsort(X[:, f], kind="stable")
+        xs, ys = X[order, f], Y[order]
+        for i in range(n - 1):
+            n_l = i + 1
+            if xs[i] == xs[i + 1] or n_l < min_leaf or n - n_l < min_leaf:
+                continue
+            within = np.sum((ys[:n_l] - ys[:n_l].mean(0)) ** 2) + np.sum((ys[n_l:] - ys[n_l:].mean(0)) ** 2)
+            reduction = total_ss - within
+            if reduction > ref_red:
+                ref_feat, ref_thr, ref_red = f, 0.5 * (xs[i] + xs[i + 1]), reduction
+
+    assert best is not None
+    assert ref_feat is not None and ref_thr is not None
+    assert best.feature == ref_feat
+    assert np.isclose(best.threshold, ref_thr)
+
+
+def test_no_valid_split_returns_none():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))  # all identical feature values -> no distinct cut
+    Y = np.random.default_rng(0).normal(size=(6, 2))
+    assert crit.best_split(X, Y, [0, 1], np.random.default_rng(0), min_leaf=1) is None
+
+
+def test_empty_features_is_a_wiring_error():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))
+    Y = np.random.default_rng(0).normal(size=(6, 2))
+    with pytest.raises(ValueError, match="empty"):
+        crit.best_split(X, Y, [], np.random.default_rng(0), min_leaf=1)
+
+
+def test_shape_mismatch_is_rejected():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))
+    Y = np.zeros((5, 2))
+    with pytest.raises(ValueError, match="disagree on n"):
+        crit.best_split(X, Y, [0], np.random.default_rng(0), min_leaf=1)
+
+
+def test_out_of_range_feature_is_rejected():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))
+    Y = np.zeros((6, 2))
+    with pytest.raises(ValueError, match="out of range"):
+        crit.best_split(X, Y, [0, 5], np.random.default_rng(0), min_leaf=1)
+
+
+def test_bool_feature_index_is_rejected():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))
+    Y = np.zeros((6, 2))
+    with pytest.raises(TypeError, match="not bool"):
+        crit.best_split(X, Y, [True], np.random.default_rng(0), min_leaf=1)
+
+
+def test_non_integer_feature_index_is_rejected():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))
+    Y = np.zeros((6, 2))
+    # cast: deliberately feed a non-integer id to exercise the runtime guard.
+    with pytest.raises(TypeError, match="must be an integer"):
+        crit.best_split(X, Y, cast(list[int], [1.5]), np.random.default_rng(0), min_leaf=1)
+
+
+def test_zero_dimensional_response_is_rejected():
+    crit = CartCriterion()
+    X = np.zeros((6, 2))
+    Y = np.zeros((6, 0))
+    with pytest.raises(ValueError, match="zero response dimensions"):
+        crit.best_split(X, Y, [0], np.random.default_rng(0), min_leaf=1)
+
+
+def test_zero_dim_rff_is_rejected():
+    with pytest.raises(ValueError, match="dim must be positive"):
+        sample_rff(0, 16, 1.0, np.random.default_rng(0))
+
+
+def test_mmd_from_data_sets_sigma():
+    Y = np.random.default_rng(0).normal(size=(30, 2))
+    crit = MmdRffCriterion.from_data(Y, n_features=32, bandwidth_rule=fixed_bandwidth(1.3))
+    assert crit.sigma == 1.3
+    assert crit.dim == 2
+    assert crit.scale == 1.0 / 32

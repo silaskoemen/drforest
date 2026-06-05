@@ -1,7 +1,6 @@
 [workspace]
 name = "drforest"
 channels = ["conda-forge"]
-exclude-newer = "7d"
 platforms = ["osx-arm64", "osx-64", "linux-64", "win-64"]
 preview = ["pixi-build"]
 
@@ -16,7 +15,12 @@ hatchling = "*"
 uv = "*"
 
 [dependencies]
-drforest = { path = "." }
+
+[pypi-dependencies]
+drforest = { path = ".", editable = true }
+
+[tasks]
+setup = "pre-commit install"
 
 [feature.test.dependencies]
 pytest = "*"
@@ -36,16 +40,16 @@ build-wheel = "python -m build --no-isolation ."
 check-wheel = "twine check dist/*"
 
 [feature.lint.dependencies]
-lefthook = "*"
+pre-commit = "*"
 ruff = "*"
 prettier = "*"
 taplo = "*"
 pre-commit-hooks = "*"
 typos = "*"
 zizmor = "*"
+ty = ">=0.0.44,<0.0.45"
 [feature.lint.tasks]
-pre-commit-install = "lefthook install"
-lint = "lefthook run pre-commit --all-files"
+lint = "pre-commit run --all-files"
 
 [feature.py311.dependencies]
 python = "3.11.*"
