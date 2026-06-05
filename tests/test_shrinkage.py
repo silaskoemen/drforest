@@ -5,6 +5,7 @@ import pytest
 from scipy.sparse import csr_matrix
 
 from drforest.criteria.mmd_rff import MmdRffCriterion
+from drforest.datasets import make_shrinkage_toy
 from drforest.features.rff import fixed_bandwidth, sample_rff
 from drforest.forest import DistributionalRandomForest
 from drforest.metrics import mean_crps, rmse
@@ -134,17 +135,8 @@ def test_shrunk_weights_recompute_metrics_on_distribution_shift_toy():
 
 
 def test_step7_mmd_rff_forest_raw_vs_marginal_shrinkage_signal():
-    rng = np.random.default_rng(29)
-    n = 260
-    X = rng.uniform(-1.0, 1.0, size=(n, 2))
-    location = np.column_stack(
-        [
-            np.where(X[:, 0] < 0.0, -1.0, 1.0),
-            np.where(X[:, 1] < 0.0, 0.75, -0.75),
-        ]
-    )
-    scale = 0.25 + 0.8 * (X[:, 0] >= 0.0)[:, None]
-    Y = location + rng.normal(scale=scale, size=(n, 2))
+    dataset = make_shrinkage_toy(n=260, seed=29)
+    X, Y = dataset.X, dataset.Y
 
     forest = DistributionalRandomForest(
         criterion_factory=lambda Y: MmdRffCriterion.from_data(
