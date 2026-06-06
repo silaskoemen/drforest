@@ -63,7 +63,7 @@ def test_result_writer_does_not_require_seed_and_avoids_collisions(tmp_path):
     assert second.exists()
 
 
-def test_ablation_grid_runs_on_synthetic_dataset(capsys, monkeypatch, tmp_path):
+def test_ablation_grid_runs_on_synthetic_dataset(monkeypatch, tmp_path):
     module = _load_module("run_ablation.py")
     small = make_gaussian_copula(n=120, p=4, d=2, seed=0)
     monkeypatch.setattr(module, "load_dataset", lambda name: small)
@@ -78,9 +78,11 @@ def test_ablation_grid_runs_on_synthetic_dataset(capsys, monkeypatch, tmp_path):
         results_dir=tmp_path,
     )
 
-    out = capsys.readouterr().out
-    for token in ("cart", "mmd_rff", "raw", "marginal_kmse", "parent_stein", "washout"):
-        assert token in out
+    runs = payload["datasets"][0]["runs"]
+    assert {run["criterion"] for run in runs} == {"cart", "mmd_rff", "sliced_wasserstein"}
+    for run in runs:
+        assert {"raw", "marginal_kmse", "parent_stein"} <= set(run["variants"])
+        assert "washout" in run
     washout = payload["datasets"][0]["washout_summary"]["cart"]
     assert washout["rho_bar_mean"] <= 1.0
     assert "single_tree_std_mean" in washout

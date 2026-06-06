@@ -6,6 +6,12 @@ import pytest
 from drforest.criteria.base import _best_split_on_feature
 from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
+from drforest.criteria.sliced_wasserstein import (
+    SlicedWassersteinCriterion,
+    _best_split_on_feature_sliced,
+    _sample_unit_directions,
+    _wasserstein_1d_sq,
+)
 from drforest.features.rff import fixed_bandwidth, sample_rff
 
 
@@ -226,3 +232,72 @@ def test_mmd_from_data_sets_sigma():
     assert crit.sigma == 1.3
     assert crit.dim == 2
     assert crit.scale == 1.0 / 32
+
+
+def test_wasserstein_1d_sq_matches_quantile_integral():
+    left = np.array([0.0, 2.0])
+    right = np.array([1.0, 3.0])
+    assert np.isclose(_wasserstein_1d_sq(left, right), 1.0)
+
+    unequal = _wasserstein_1d_sq(np.array([0.0]), np.array([2.0, 4.0]))
+    # ∫_0^0.5 (0 - 2)^2 du + ∫_0.5^1 (0 - 4)^2 du
+    assert np.isclose(unequal, 10.0)
+
+
+def test_sliced_wasserstein_best_split_matches_projected_reference():
+    rng = np.random.default_rng(11)
+    n, p, dim = 50, 3, 2
+    X = rng.normal(size=(n, p))
+    Y = rng.normal(size=(n, dim))
+    Y += (X[:, 1] > 0.0)[:, None] * np.array([0.0, 3.0])
+    features = [0, 1, 2]
+    seed = 123
+    n_projections = 8
+
+    split = SlicedWassersteinCriterion(n_projections=n_projections, dim=dim).best_split(
+        X, Y, features, np.random.default_rng(seed), min_leaf=4, threshold_bounds=None
+    )
+
+    theta = _sample_unit_directions(dim, n_projections, np.random.default_rng(seed))
+    projected = Y @ theta.T
+    ref = None
+    for feature in features:
+        found = _best_split_on_feature_sliced(X[:, feature], projected, min_leaf=4, lo=-np.inf, hi=np.inf)
+        if found is None:
+            continue
+        threshold, score = found
+        if ref is None or score > ref[2]:
+            ref = (feature, threshold, score)
+
+    assert split is not None
+    assert ref is not None
+    assert split.feature == ref[0]
+    assert np.isclose(split.threshold, ref[1])
+    assert np.isclose(split.score, ref[2])
+
+
+def test_sliced_wasserstein_honors_threshold_bounds():
+    rng = np.random.default_rng(12)
+    X = rng.normal(size=(40, 1))
+    Y = rng.normal(size=(40, 2))
+    bounds = np.array([[-0.2, 0.3]])
+    split = SlicedWassersteinCriterion(n_projections=4, dim=2).best_split(
+        X, Y, [0], np.random.default_rng(0), min_leaf=3, threshold_bounds=bounds
+    )
+    assert split is not None
+    assert -0.2 <= split.threshold < 0.3
+
+
+def test_sliced_wasserstein_from_data_sets_dimensions():
+    Y = np.random.default_rng(0).normal(size=(30, 3))
+    crit = SlicedWassersteinCriterion.from_data(Y, n_projections=7)
+    assert crit.n_projections == 7
+    assert crit.dim == 3
+
+
+def test_sliced_wasserstein_rejects_response_dimension_mismatch():
+    X = np.zeros((8, 1))
+    Y = np.zeros((8, 2))
+    crit = SlicedWassersteinCriterion(n_projections=3, dim=3)
+    with pytest.raises(ValueError, match="response dimensions"):
+        crit.best_split(X, Y, [0], np.random.default_rng(0), min_leaf=1, threshold_bounds=None)
