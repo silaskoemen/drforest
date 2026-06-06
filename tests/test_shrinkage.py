@@ -108,6 +108,38 @@ def test_shrink_rejects_unknown_target():
         shrink(W, Y, rff=rff, target="parent")  # type: ignore[arg-type]
 
 
+def test_shrink_rejects_unknown_parameterization():
+    Y = np.array([[0.0], [1.0]])
+    W = csr_matrix([[0.5, 0.5]])
+    rff = _rff(Y)
+
+    with pytest.raises(ValueError, match="kmse.*stein"):
+        shrink(W, Y, rff=rff, parameterization="oracle")
+
+
+def test_stein_parameterization_shrinks_at_least_as_much_as_kmse():
+    # stein uses the bias-corrected D̂² = MMD² - V, so its α = V/MMD² is always
+    # >= the kmse α = V/(V+MMD²); they coincide only as V/MMD² -> 0.
+    Y = np.array([[-1.0], [0.0], [1.0], [2.0]])
+    W = csr_matrix([[1.0, 0.0, 0.0, 0.0], [0.1, 0.2, 0.3, 0.4]])
+    rff = _rff(Y)
+
+    kmse = shrink(W, Y, rff=rff, parameterization="kmse").alpha
+    stein = shrink(W, Y, rff=rff, parameterization="stein").alpha
+
+    assert np.all(stein >= kmse - 1e-12)
+    assert np.all((0.0 <= stein) & (stein <= 1.0))
+
+
+def test_stein_alpha_is_one_when_conditional_equals_target():
+    Y = np.array([[-1.0], [0.0], [1.0], [2.0]])
+    W = marginal_target(Y.shape[0])
+    rff = _rff(Y)
+
+    # MMD² -> 0 with conditional == target, so V/MMD² clips up to 1.
+    assert shrink(W, Y, rff=rff, parameterization="stein").alpha[0] == pytest.approx(1.0)
+
+
 def test_shrunk_weights_recompute_metrics_on_distribution_shift_toy():
     rng = np.random.default_rng(19)
     X = rng.uniform(-1.0, 1.0, size=(300, 1))

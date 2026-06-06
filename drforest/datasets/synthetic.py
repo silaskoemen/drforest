@@ -11,6 +11,8 @@ from typing import Any, Literal
 
 import numpy as np
 
+from drforest.datasets.external import is_fetchable, read_mtr_dataset
+
 DatasetKind = Literal["synthetic", "external"]
 
 
@@ -101,10 +103,18 @@ _EXTERNAL_INFOS = {
         description="Registered benchmark dataset; fetch/preprocessing is not implemented yet.",
         source=MULAN_SOURCE,
     )
-    for name in ("jura", "slump", "wq", "enb", "atp1d", "atp7d", "scpf", "sf1", "sf2")
+    for name in ("jura", "slump", "wq", "atp1d", "atp7d", "scpf", "sf1", "sf2")
 }
 _EXTERNAL_INFOS.update(
     {
+        "enb": DatasetInfo(
+            name="enb",
+            kind="external",
+            n_features=8,
+            n_responses=2,
+            description="Energy-efficiency buildings: predict heating (Y1) and cooling (Y2) load from 8 design parameters.",
+            source=MULAN_SOURCE,
+        ),
         "birth1": DatasetInfo(
             name="birth1",
             kind="external",
@@ -156,9 +166,10 @@ def _dataset(
     name: str,
     X: np.ndarray,
     Y: np.ndarray,
-    feature_prefix: str,
     response_names: tuple[str, ...],
     description: str,
+    feature_prefix: str | None = None,
+    feature_names: tuple[str, ...] | None = None,
 ) -> Dataset:
     X = np.ascontiguousarray(X, dtype=np.float64)
     Y = np.ascontiguousarray(Y, dtype=np.float64)
@@ -172,11 +183,19 @@ def _dataset(
         raise ValueError(f"expected {Y.shape[1]} response names; got {len(response_names)}")
     if not np.isfinite(X).all() or not np.isfinite(Y).all():
         raise ValueError("datasets must contain only finite values")
+
+    if feature_names is None:
+        if feature_prefix is None:
+            raise ValueError("provide either feature_names or feature_prefix")
+        feature_names = tuple(f"{feature_prefix}{j + 1}" for j in range(X.shape[1]))
+    if len(feature_names) != X.shape[1]:
+        raise ValueError(f"expected {X.shape[1]} feature names; got {len(feature_names)}")
+
     return Dataset(
         name=name,
         X=X,
         Y=Y,
-        feature_names=tuple(f"{feature_prefix}{j + 1}" for j in range(X.shape[1])),
+        feature_names=feature_names,
         response_names=response_names,
         description=description,
     )
@@ -317,8 +336,20 @@ def load_dataset(name: str, **kwargs: Any) -> Dataset:
         raise ValueError(f"unknown dataset {name!r}; available: {', '.join(sorted(DATASET_REGISTRY))}")
     info = DATASET_REGISTRY[name]
     if info.kind == "external":
-        raise NotImplementedError(
-            f"{name!r} is registered but external dataset fetching/preprocessing is not implemented"
+        if not is_fetchable(name):
+            raise NotImplementedError(
+                f"{name!r} is registered but external dataset fetching/preprocessing is not implemented"
+            )
+        if kwargs:
+            raise TypeError(f"external dataset {name!r} takes no generation kwargs; got {sorted(kwargs)}")
+        X, Y, feature_names, response_names = read_mtr_dataset(name)
+        return _dataset(
+            name=name,
+            X=X,
+            Y=Y,
+            feature_names=feature_names,
+            response_names=response_names,
+            description=info.description,
         )
 
     if name == "paper_quantile_1":

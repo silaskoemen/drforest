@@ -71,3 +71,6 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "network: test requires network access (fetches a real dataset); skips if offline",
+]
