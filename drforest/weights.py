@@ -41,18 +41,20 @@ def _leaf_atoms(tree: DecisionTree) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     return atoms_by_leaf, leaf_ptr, leaf_sizes
 
 
-def _tree_contributions(
-    tree: DecisionTree, X_test: np.ndarray, n_trees: int
+def _ragged_leaf_contributions(
+    leaf_of_test: np.ndarray,
+    atoms_by_leaf: np.ndarray,
+    leaf_ptr: np.ndarray,
+    n_trees: int,
+    *,
+    empty_message: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """COO (rows, cols, data) of one tree's weight contribution to ``W``."""
-    leaf_of_test = tree.apply(X_test)  # (n_test,), validates n_features_in
-    atoms_by_leaf, leaf_ptr, leaf_sizes = _leaf_atoms(tree)
-
-    counts = leaf_sizes[leaf_of_test]  # atoms each test point inherits
+    """COO contribution for test rows inheriting each routed leaf's atoms."""
+    counts = np.diff(leaf_ptr)[leaf_of_test]
     if not (counts > 0).all():
-        raise ValueError("empty leaf encountered: tree violates the no-empty-leaf guarantee")
+        raise ValueError(empty_message)
 
-    n_test = X_test.shape[0]
+    n_test = leaf_of_test.shape[0]
     total = int(counts.sum())
     # Ragged gather: for test point i in leaf l, emit its atoms with weight
     # 1 / (n_trees * |l|). within-block offset = position - block start.
@@ -65,6 +67,21 @@ def _tree_contributions(
     cols = atoms_by_leaf[atom_index]
     data = np.repeat(1.0 / (n_trees * counts), counts)
     return rows, cols, data
+
+
+def _tree_contributions(
+    tree: DecisionTree, X_test: np.ndarray, n_trees: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """COO (rows, cols, data) of one tree's weight contribution to ``W``."""
+    leaf_of_test = tree.apply(X_test)  # (n_test,), validates n_features_in
+    atoms_by_leaf, leaf_ptr, _ = _leaf_atoms(tree)
+    return _ragged_leaf_contributions(
+        leaf_of_test,
+        atoms_by_leaf,
+        leaf_ptr,
+        n_trees,
+        empty_message="empty leaf encountered: tree violates the no-empty-leaf guarantee",
+    )
 
 
 def assemble_weights(trees: Sequence[DecisionTree], X_test: np.ndarray, n_train: int) -> csr_matrix:

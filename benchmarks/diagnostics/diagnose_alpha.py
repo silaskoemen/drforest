@@ -23,9 +23,12 @@ Materialise external datasets once with
 """
 
 import argparse
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 
+from benchmarks.results_io import write_json_result
 from drforest.criteria.mmd_rff import MmdRffCriterion
 from drforest.datasets import load_dataset
 from drforest.features.rff import median_heuristic, sample_rff
@@ -34,15 +37,39 @@ from drforest.shrinkage import marginal_target
 from drforest.tree import TreeParams
 from drforest.weights import embedding_norm_sq, mmd_to_target, n_eff
 
+DIAGNOSTIC_NAME = "diagnose_alpha"
+
+
+def _summary(v: np.ndarray) -> dict[str, float]:
+    qs = np.quantile(v, [0.0, 0.25, 0.5, 0.75, 1.0])
+    return {
+        "min": float(qs[0]),
+        "q25": float(qs[1]),
+        "median": float(qs[2]),
+        "q75": float(qs[3]),
+        "max": float(qs[4]),
+        "mean": float(v.mean()),
+    }
+
 
 def _q(name: str, v: np.ndarray) -> None:
-    qs = np.quantile(v, [0.0, 0.25, 0.5, 0.75, 1.0])
+    s = _summary(v)
     print(
-        f"{name:<14} min={qs[0]:.4g}  q25={qs[1]:.4g}  med={qs[2]:.4g}  q75={qs[3]:.4g}  max={qs[4]:.4g}  mean={v.mean():.4g}"
+        f"{name:<14} min={s['min']:.4g}  q25={s['q25']:.4g}  med={s['median']:.4g}  "
+        f"q75={s['q75']:.4g}  max={s['max']:.4g}  mean={s['mean']:.4g}"
     )
 
 
-def run(*, dataset: str, seed: int, n_trees: int, n_features: int, shrink_features: int) -> None:
+def run(
+    *,
+    dataset: str,
+    seed: int,
+    n_trees: int,
+    n_features: int,
+    shrink_features: int,
+    results_dir: Path | None = None,
+    write_json: bool = True,
+) -> dict[str, Any]:
     data = load_dataset(dataset)
     rng = np.random.default_rng(seed)
     perm = rng.permutation(data.X.shape[0])
@@ -93,6 +120,40 @@ def run(*, dataset: str, seed: int, n_trees: int, n_features: int, shrink_featur
     print()
     _q("α̂_current", alpha_current)
     _q("α̂_js (unb)", alpha_js)
+    summaries = {
+        "norm_sq": _summary(norm_sq),
+        "variance_scale": _summary(var_scale),
+        "n_eff": _summary(ne),
+        "V": _summary(V),
+        "MMD_sq": _summary(mmd),
+        "D2_unbiased": _summary(D2_unb),
+        "V_over_MMD_sq": _summary(np.divide(V, mmd, out=np.ones_like(V), where=mmd > 0)),
+        "alpha_current": _summary(alpha_current),
+        "alpha_js": _summary(alpha_js),
+    }
+    payload = {
+        "study": DIAGNOSTIC_NAME,
+        "params": {
+            "dataset": dataset,
+            "seed": seed,
+            "n_trees": n_trees,
+            "n_features": n_features,
+            "shrink_features": shrink_features,
+        },
+        "dataset": {
+            "name": data.name,
+            "n": int(data.X.shape[0]),
+            "p": int(data.X.shape[1]),
+            "d": int(data.Y.shape[1]),
+            "n_train": int(X_train.shape[0]),
+            "n_test": int(n_test),
+        },
+        "summaries": summaries,
+    }
+    if write_json:
+        path = write_json_result(DIAGNOSTIC_NAME, payload, results_dir)
+        print(f"wrote JSON: {path}")
+    return payload
 
 
 def main() -> None:
@@ -102,6 +163,8 @@ def main() -> None:
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200)
     parser.add_argument("--shrink-features", type=int, default=1000)
+    parser.add_argument("--results-dir", type=Path, default=None)
+    parser.add_argument("--no-write-json", action="store_true")
     args = parser.parse_args()
     run(
         dataset=args.dataset,
@@ -109,6 +172,8 @@ def main() -> None:
         n_trees=args.n_trees,
         n_features=args.n_features,
         shrink_features=args.shrink_features,
+        results_dir=args.results_dir,
+        write_json=not args.no_write_json,
     )
 
 

@@ -9,9 +9,9 @@ from drforest.datasets import make_shrinkage_toy
 from drforest.features.rff import fixed_bandwidth, sample_rff
 from drforest.forest import DistributionalRandomForest
 from drforest.metrics import mean_crps, rmse
-from drforest.shrinkage import marginal_target, shrink
+from drforest.shrinkage import marginal_target, parent_target, shrink, shrink_to_target
 from drforest.targets import weighted_mean
-from drforest.tree import TreeParams
+from drforest.tree import DecisionTree, TreeParams
 from drforest.weights import embedding_norm_sq, mmd_to_target, n_eff
 
 
@@ -52,6 +52,104 @@ def test_marginal_target_rejects_invalid_size():
         marginal_target(True)
     with pytest.raises(TypeError, match="not float"):
         marginal_target(cast(Any, 3.7))
+
+
+def test_parent_target_uses_parent_node_distribution():
+    tree = DecisionTree(
+        feature=np.array([0, -1, -1], dtype=np.int32),
+        threshold=np.array([0.0, np.nan, np.nan], dtype=np.float64),
+        left=np.array([1, -1, -1], dtype=np.int32),
+        right=np.array([2, -1, -1], dtype=np.int32),
+        leaf_id=np.array([-1, 0, 1], dtype=np.int32),
+        n_leaves=2,
+        n_features_in=1,
+        split_sample_rows=np.array([0, 1, 2, 3], dtype=np.int32),
+        leaf_sample_rows=np.array([0, 1, 2, 3], dtype=np.int32),
+        leaf_sample_leaf=np.array([0, 0, 1, 1], dtype=np.int32),
+    )
+
+    target = parent_target([tree], np.array([[-1.0], [1.0]]), n_train=4).toarray()
+
+    assert np.allclose(target, np.full((2, 4), 0.25))
+
+
+def test_parent_target_rejects_non_contiguous_leaf_ids():
+    # This tree routes correctly, but its leaf ids are not depth-first
+    # contiguous inside the left subtree: left child leaves are ids {0, 2}.
+    tree = DecisionTree(
+        feature=np.array([0, 0, -1, -1, -1], dtype=np.int32),
+        threshold=np.array([0.0, -0.5, np.nan, np.nan, np.nan], dtype=np.float64),
+        left=np.array([1, 2, -1, -1, -1], dtype=np.int32),
+        right=np.array([4, 3, -1, -1, -1], dtype=np.int32),
+        leaf_id=np.array([-1, -1, 0, 2, 1], dtype=np.int32),
+        n_leaves=3,
+        n_features_in=1,
+        split_sample_rows=np.arange(6, dtype=np.int32),
+        leaf_sample_rows=np.arange(6, dtype=np.int32),
+        leaf_sample_leaf=np.array([0, 0, 1, 1, 2, 2], dtype=np.int32),
+    )
+
+    with pytest.raises(ValueError, match="depth-first contiguous"):
+        parent_target([tree], np.array([[-1.0], [1.0]]), n_train=6)
+
+
+def test_parent_shrink_requires_tree_context():
+    Y = np.array([[-1.0], [0.0], [1.0], [2.0]])
+    W = csr_matrix([[0.5, 0.5, 0.0, 0.0]])
+    rff = _rff(Y)
+
+    with pytest.raises(ValueError, match="trees and X_test"):
+        shrink(W, Y, rff=rff, target="parent")
+
+
+def test_parent_shrink_preserves_simplex():
+    dataset = make_shrinkage_toy(n=120, seed=21)
+    forest = DistributionalRandomForest(
+        criterion_factory=lambda Y: MmdRffCriterion.from_data(
+            Y,
+            n_features=48,
+            bandwidth_rule=fixed_bandwidth(1.2),
+        ),
+        seed=5,
+        n_trees=8,
+        subsample=0.8,
+        tree_params=TreeParams(min_samples_leaf=5, alpha=0.02, honesty_fraction=0.5, colsample=1.0),
+    ).fit(dataset.X, dataset.Y)
+    X_test = dataset.X[:20]
+    W = forest.weights(X_test)
+    rff = _rff(dataset.Y, n_features=128, sigma=1.2, seed=9)
+
+    result = shrink(W, dataset.Y, rff=rff, target="parent", trees=forest.trees, X_test=X_test)
+
+    got = result.weights.to_csr()
+    assert got.shape == W.shape
+    assert np.allclose(np.asarray(got.sum(axis=1)).ravel(), 1.0)
+    assert np.all((0.0 <= result.alpha) & (result.alpha <= 1.0))
+
+
+def test_shrink_to_target_matches_parent_shrink_with_precomputed_target():
+    dataset = make_shrinkage_toy(n=120, seed=22)
+    forest = DistributionalRandomForest(
+        criterion_factory=lambda Y: MmdRffCriterion.from_data(
+            Y,
+            n_features=48,
+            bandwidth_rule=fixed_bandwidth(1.2),
+        ),
+        seed=6,
+        n_trees=8,
+        subsample=0.8,
+        tree_params=TreeParams(min_samples_leaf=5, alpha=0.02, honesty_fraction=0.5, colsample=1.0),
+    ).fit(dataset.X, dataset.Y)
+    X_test = dataset.X[:20]
+    W = forest.weights(X_test)
+    rff = _rff(dataset.Y, n_features=128, sigma=1.2, seed=10)
+    target = parent_target(forest.trees, X_test, W.shape[1])
+
+    direct = shrink(W, dataset.Y, rff=rff, target="parent", trees=forest.trees, X_test=X_test)
+    precomputed = shrink_to_target(W, dataset.Y, rff=rff, target_weights=target)
+
+    assert np.allclose(precomputed.alpha, direct.alpha)
+    assert np.allclose(precomputed.weights.to_csr().toarray(), direct.weights.to_csr().toarray())
 
 
 def test_shrink_preserves_simplex_and_uses_marginal_convex_combination():
@@ -104,8 +202,8 @@ def test_shrink_rejects_unknown_target():
     W = csr_matrix([[0.5, 0.5]])
     rff = _rff(Y)
 
-    with pytest.raises(ValueError, match="only 'marginal'"):
-        shrink(W, Y, rff=rff, target="parent")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="marginal.*parent"):
+        shrink(W, Y, rff=rff, target="shallow")  # type: ignore[arg-type]
 
 
 def test_shrink_rejects_unknown_parameterization():
