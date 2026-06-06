@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+from loguru import logger
 
 from benchmarks.results_io import write_json_result
 from drforest.criteria.cart import CartCriterion
@@ -161,6 +162,7 @@ def run(
         "datasets": [],
     }
     for dataset in datasets:
+        logger.info(f"📊 Running ablation on dataset {dataset!r}")
         data = load_dataset(dataset)
         # acc[(criterion, variant)][metric] -> list over repeats; plus mean alpha
         acc = {(c, v): {m: [] for m in METRICS} for c in CRITERIA for v in VARIANTS}
@@ -186,19 +188,20 @@ def run(
                         acc[(criterion, variant)][m].append(scores[m])
                     alpha[(criterion, variant)].append(result["alpha_mean"])
 
-        print(
-            f"\n=== {dataset}  (n={data.X.shape[0]}, d={data.Y.shape[1]}, repeats={repeats}, seeds {seed}..{seed + repeats - 1}) ==="
+        logger.success(f"📊 Finished running ablation on dataset {dataset!r}")
+        logger.info(
+            f"=== {dataset}  (n={data.X.shape[0]}, d={data.Y.shape[1]}, repeats={repeats}, seeds {seed}..{seed + repeats - 1}) ==="
         )
         header = f"{'criterion':<10}{'variant':<16}{'RMSE':>9}{'energy':>9}{'CRPS':>9}{'alpha':>9}"
-        print(header)
-        print("-" * len(header))
+        logger.info(header)
+        logger.info("-" * len(header))
         summary = []
         for criterion in CRITERIA:
             for variant in VARIANTS:
                 cell = acc[(criterion, variant)]
                 vals = {m: np.mean(cell[m]) for m in METRICS}
                 a = np.mean(alpha[(criterion, variant)])
-                print(
+                logger.info(
                     f"{criterion:<10}{variant:<16}{vals['RMSE']:>9.4f}{vals['energy']:>9.4f}{vals['CRPS']:>9.4f}{a:>9.4f}"
                 )
                 summary.append(
@@ -219,9 +222,9 @@ def run(
             }
             for criterion, rows in washout.items()
         }
-        print("\nwashout:")
+        logger.info("washout:")
         for criterion, values in washout_summary.items():
-            print(f"{criterion:<10} rho_bar={values['rho_bar_mean']:.4f}")
+            logger.info(f"{criterion:<10} rho_bar={values['rho_bar_mean']:.4f}")
         payload["datasets"].append(
             {
                 "name": data.name,
@@ -233,10 +236,10 @@ def run(
                 "washout_summary": washout_summary,
             }
         )
-    print("\n(lower is better for all three metrics; alpha is mean shrinkage intensity)")
+    logger.info("\n(lower is better for all three metrics; alpha is mean shrinkage intensity)")
     if write_json:
         path = write_json_result(STUDY_NAME, payload, results_dir)
-        print(f"wrote JSON: {path}")
+        logger.info(f"wrote JSON: {path}")
     return payload
 
 
@@ -251,6 +254,8 @@ def main() -> None:
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--no-write-json", action="store_true")
     args = parser.parse_args()
+    logger.info("🚀 Starting ablation study")
+    logger.info(f"Args: {args}")
     run(
         datasets=args.datasets,
         seed=args.seed,
