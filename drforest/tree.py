@@ -24,8 +24,10 @@ Design choices (see also the project config note):
   honest leaves populated — empty honest leaves are impossible and we no longer
   stump just because the unconstrained best-on-``S`` split was leaf-infeasible.
 
-- **colsample.** A fraction of *features* is resampled per node as split
-  candidates; for each candidate the criterion sweep evaluates every cut point.
+- **colsample + cutpoint cap.** A fraction of *features* is resampled per node
+  as split candidates; for each candidate the criterion sweep evaluates every
+  admissible cut point unless ``max_cutpoints`` caps all criteria to the same
+  deterministic rank-probe grid.
 
 - **Independent per-node RNG axes.** Each node spawns two sibling streams from
   its node generator: one for structure (colsampling) and one for the criterion
@@ -45,6 +47,7 @@ Design choices (see also the project config note):
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
+from numbers import Integral
 
 import numpy as np
 from numpy.random import Generator
@@ -62,10 +65,19 @@ class TreeParams:
     alpha: float = 0.05
     honesty_fraction: float = 0.5
     colsample: float = 0.7
+    max_cutpoints: int | None = None
 
     def __post_init__(self) -> None:
         if self.min_samples_leaf < 1:
             raise ValueError(f"min_samples_leaf must be >= 1; got {self.min_samples_leaf}")
+        if self.max_cutpoints is not None:
+            if isinstance(self.max_cutpoints, bool | np.bool_) or not isinstance(self.max_cutpoints, Integral):
+                raise TypeError(
+                    f"max_cutpoints must be an integer or None, not {type(self.max_cutpoints).__name__}: "
+                    f"{self.max_cutpoints!r}"
+                )
+            if self.max_cutpoints < 1:
+                raise ValueError(f"max_cutpoints must be >= 1 or None; got {self.max_cutpoints}")
         if not 0.0 <= self.honesty_fraction < 1.0:
             raise ValueError(f"honesty_fraction must be in [0, 1); got {self.honesty_fraction}")
         if not 0.0 < self.colsample <= 1.0:
@@ -300,7 +312,15 @@ def build_tree(
             # X-only leaf-feasibility band: the criterion searches the best split
             # that also keeps both honest leaves populated. No empty leaves result.
             bounds = _threshold_bounds(X, l_idx, candidates, params.min_samples_leaf)
-            split = criterion.best_split(X[s_idx], Y[s_idx], candidates, g_crit, min_child, bounds)
+            split = criterion.best_split(
+                X[s_idx],
+                Y[s_idx],
+                candidates,
+                g_crit,
+                min_child,
+                bounds,
+                params.max_cutpoints,
+            )
             if split is not None:
                 s_left, l_left = _validate_split_contract(split, p, min_child, X, s_idx, l_idx, params.min_samples_leaf)
                 feature[idx] = split.feature

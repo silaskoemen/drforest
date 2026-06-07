@@ -16,6 +16,7 @@ from drforest.criteria.base import (
     Criterion,
     Split,
     _as_feature_index,
+    split_candidate_positions,
     validate_split_inputs,
 )
 
@@ -46,6 +47,7 @@ class SlicedWassersteinCriterion(Criterion):
         rng: Generator,
         min_leaf: int,
         threshold_bounds: np.ndarray | None,
+        max_cutpoints: int | None = None,
     ) -> Split | None:
         validate_split_inputs(X, Y, features)
         if Y.shape[1] != self.dim:
@@ -57,13 +59,20 @@ class SlicedWassersteinCriterion(Criterion):
             if threshold_bounds.shape != (len(features), 2):
                 raise ValueError(f"threshold_bounds must have shape ({len(features)}, 2); got {threshold_bounds.shape}")
 
-        theta = _sample_unit_directions(self.dim, self.n_projections, rng)
-        projected = np.ascontiguousarray(Y @ theta.T, dtype=np.float64)
+        if self.dim == 1:
+            # In one response dimension every unit projection is either +Y or
+            # -Y, and W2 is invariant to a shared sign flip. Averaging many
+            # projections repeats the same score, so use the exact equivalent
+            # single projected column.
+            projected = np.ascontiguousarray(Y, dtype=np.float64)
+        else:
+            theta = _sample_unit_directions(self.dim, self.n_projections, rng)
+            projected = np.ascontiguousarray(Y @ theta.T, dtype=np.float64)
         best: Split | None = None
         for j, f in enumerate(features):
             idx = _as_feature_index(f)
             lo, hi = (-np.inf, np.inf) if threshold_bounds is None else threshold_bounds[j]
-            found = _best_split_on_feature_sliced(X[:, idx], projected, min_leaf, lo, hi)
+            found = _best_split_on_feature_sliced(X[:, idx], projected, min_leaf, lo, hi, max_cutpoints)
             if found is None:
                 continue
             threshold, score = found
@@ -91,30 +100,39 @@ def _wasserstein_1d_sq(left: np.ndarray, right: np.ndarray) -> float:
 
     left_sorted = np.sort(left)
     right_sorted = np.sort(right)
-    i = 0
-    j = 0
-    u = 0.0
-    total = 0.0
-    while i < n_left and j < n_right:
-        next_left = (i + 1) / n_left
-        next_right = (j + 1) / n_right
-        u_next = min(next_left, next_right)
-        total += (u_next - u) * float((left_sorted[i] - right_sorted[j]) ** 2)
-        u = u_next
-        if next_left <= u:
-            i += 1
-        if next_right <= u:
-            j += 1
-    return total
+    if n_left == n_right:
+        return float(np.mean((left_sorted - right_sorted) ** 2))
+
+    left_jumps = np.arange(1, n_left, dtype=np.float64) / n_left
+    right_jumps = np.arange(1, n_right, dtype=np.float64) / n_right
+    breaks = np.concatenate(([0.0], left_jumps, right_jumps, [1.0]))
+    breaks.sort()
+    breaks = np.unique(breaks)
+
+    lower = breaks[:-1]
+    upper = breaks[1:]
+    widths = upper - lower
+    mid = 0.5 * (lower + upper)
+    left_idx = np.minimum((mid * n_left).astype(np.int64), n_left - 1)
+    right_idx = np.minimum((mid * n_right).astype(np.int64), n_right - 1)
+    diff = left_sorted[left_idx] - right_sorted[right_idx]
+    return float(np.sum(widths * diff**2))
 
 
 def _sliced_wasserstein_sq(left: np.ndarray, right: np.ndarray) -> float:
+    if left.shape[1] == 1:
+        return _wasserstein_1d_sq(left[:, 0], right[:, 0])
     values = [_wasserstein_1d_sq(left[:, b], right[:, b]) for b in range(left.shape[1])]
     return float(np.mean(values))
 
 
 def _best_split_on_feature_sliced(
-    x: np.ndarray, projected: np.ndarray, min_leaf: int, lo: float, hi: float
+    x: np.ndarray,
+    projected: np.ndarray,
+    min_leaf: int,
+    lo: float,
+    hi: float,
+    max_cutpoints: int | None = None,
 ) -> tuple[float, float] | None:
     n = x.shape[0]
     if n < 2 * min_leaf:
@@ -123,15 +141,16 @@ def _best_split_on_feature_sliced(
     order = np.argsort(x, kind="stable")
     xs = x[order]
     z = projected[order]
+    positions = split_candidate_positions(xs, min_leaf=min_leaf, lo=lo, hi=hi, max_cutpoints=max_cutpoints)
+    if positions.shape[0] == 0:
+        return None
 
     best: tuple[float, float] | None = None
-    for i in range(n - 1):
+    for i in positions:
         n_left = i + 1
         n_right = n - n_left
         lower = max(float(xs[i]), float(lo))
         upper = min(float(xs[i + 1]), float(hi))
-        if xs[i] == xs[i + 1] or n_left < min_leaf or n_right < min_leaf or not lower < upper:
-            continue
 
         sw_sq = _sliced_wasserstein_sq(z[:n_left], z[n_left:])
         score = (n_left * n_right) / (n * n) * sw_sq

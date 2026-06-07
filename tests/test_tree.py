@@ -23,7 +23,7 @@ class _FixedSplitCriterion(Criterion):
     def __init__(self, split: Split):
         self._split = split
 
-    def best_split(self, X, Y, features, rng, min_leaf, threshold_bounds):
+    def best_split(self, X, Y, features, rng, min_leaf, threshold_bounds, max_cutpoints=None):
         return self._split
 
 
@@ -64,6 +64,7 @@ def _planted_data(seed=7, n=200, p=3, d=2):
         {"honesty_fraction": -0.1},
         {"colsample": 0.0},
         {"colsample": 1.5},
+        {"max_cutpoints": 0},
     ],
 )
 def test_invalid_params_rejected(kwargs):

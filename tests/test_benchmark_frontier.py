@@ -75,6 +75,7 @@ def test_ablation_grid_runs_on_synthetic_dataset(monkeypatch, tmp_path):
         n_trees=8,
         n_features=32,
         shrink_features=64,
+        max_cutpoints=8,
         results_dir=tmp_path,
     )
 

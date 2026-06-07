@@ -42,6 +42,7 @@ VARIANTS = ("raw", "marginal_kmse", "marginal_stein", "parent_kmse", "parent_ste
 DEFAULT_DATASETS = ("enb", "shrinkage_toy", "paper_quantile_2")
 METRICS = ("RMSE", "energy", "CRPS")
 STUDY_NAME = "run_ablation"
+DEFAULT_MAX_CUTPOINTS = 32
 
 
 def _split(n: int, *, test_fraction: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -103,7 +104,16 @@ def _criterion_factory(criterion: str, n_features: int):
     raise ValueError(f"unknown criterion {criterion!r}")
 
 
-def _one_run(data, *, criterion: str, seed: int, n_trees: int, n_features: int, shrink_features: int) -> dict[str, Any]:
+def _one_run(
+    data,
+    *,
+    criterion: str,
+    seed: int,
+    n_trees: int,
+    n_features: int,
+    shrink_features: int,
+    max_cutpoints: int | None,
+) -> dict[str, Any]:
     train, test = _split(data.X.shape[0], test_fraction=0.25, seed=seed)
     X_train, Y_train = data.X[train], data.Y[train]
     X_test, Y_test = data.X[test], data.Y[test]
@@ -113,7 +123,13 @@ def _one_run(data, *, criterion: str, seed: int, n_trees: int, n_features: int, 
         seed=seed,
         n_trees=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(min_samples_leaf=5, alpha=0.05, honesty_fraction=0.5, colsample=0.7),
+        tree_params=TreeParams(
+            min_samples_leaf=5,
+            alpha=0.05,
+            honesty_fraction=0.5,
+            colsample=0.7,
+            max_cutpoints=max_cutpoints,
+        ),
     ).fit(X_train, Y_train)
 
     W = forest.weights(X_test)
@@ -149,6 +165,7 @@ def run(
     n_trees: int,
     n_features: int,
     shrink_features: int,
+    max_cutpoints: int | None,
     results_dir: Path | None = None,
     write_json: bool = True,
 ) -> dict[str, Any]:
@@ -161,6 +178,7 @@ def run(
             "n_trees": n_trees,
             "n_features": n_features,
             "shrink_features": shrink_features,
+            "max_cutpoints": max_cutpoints,
         },
         "datasets": [],
     }
@@ -182,6 +200,7 @@ def run(
                     n_trees=n_trees,
                     n_features=n_features,
                     shrink_features=shrink_features,
+                    max_cutpoints=max_cutpoints,
                 )
                 run_records.append(run_result)
                 washout[criterion].append(cast(dict[str, Any], run_result["washout"]))
@@ -195,7 +214,7 @@ def run(
         logger.info(
             f"=== {dataset}  (n={data.X.shape[0]}, d={data.Y.shape[1]}, repeats={repeats}, seeds {seed}..{seed + repeats - 1}) ==="
         )
-        header = f"{'criterion':<10}{'variant':<16}{'RMSE':>9}{'energy':>9}{'CRPS':>9}{'alpha':>9}"
+        header = f"{'criterion':<20}{'variant':<16}{'RMSE':>9}{'energy':>9}{'CRPS':>9}{'alpha':>9}"
         logger.info(header)
         logger.info("-" * len(header))
         summary = []
@@ -205,7 +224,8 @@ def run(
                 vals = {m: np.mean(cell[m]) for m in METRICS}
                 a = np.mean(alpha[(criterion, variant)])
                 logger.info(
-                    f"{criterion:<10}{variant:<16}{vals['RMSE']:>9.4f}{vals['energy']:>9.4f}{vals['CRPS']:>9.4f}{a:>9.4f}"
+                    f"{criterion:<20}{variant:<16}{vals['RMSE']:>9.4f}{vals['energy']:>9.4f}"
+                    f"{vals['CRPS']:>9.4f}{a:>9.4f}"
                 )
                 summary.append(
                     {
@@ -227,7 +247,7 @@ def run(
         }
         logger.info("washout:")
         for criterion, values in washout_summary.items():
-            logger.info(f"{criterion:<10} rho_bar={values['rho_bar_mean']:.4f}")
+            logger.info(f"{criterion:<20} rho_bar={values['rho_bar_mean']:.4f}")
         payload["datasets"].append(
             {
                 "name": data.name,
@@ -254,6 +274,8 @@ def main() -> None:
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200)
     parser.add_argument("--shrink-features", type=int, default=1000)
+    parser.add_argument("--max-cutpoints", type=int, default=DEFAULT_MAX_CUTPOINTS)
+    parser.add_argument("--all-cutpoints", action="store_true")
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--no-write-json", action="store_true")
     args = parser.parse_args()
@@ -266,6 +288,7 @@ def main() -> None:
         n_trees=args.n_trees,
         n_features=args.n_features,
         shrink_features=args.shrink_features,
+        max_cutpoints=None if args.all_cutpoints else args.max_cutpoints,
         results_dir=args.results_dir,
         write_json=not args.no_write_json,
     )

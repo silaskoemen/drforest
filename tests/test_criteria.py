@@ -3,13 +3,14 @@ from typing import cast
 import numpy as np
 import pytest
 
-from drforest.criteria.base import _best_split_on_feature
+from drforest.criteria.base import _best_split_on_feature, split_candidate_positions
 from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
 from drforest.criteria.sliced_wasserstein import (
     SlicedWassersteinCriterion,
     _best_split_on_feature_sliced,
     _sample_unit_directions,
+    _sliced_wasserstein_sq,
     _wasserstein_1d_sq,
 )
 from drforest.features.rff import fixed_bandwidth, sample_rff
@@ -32,6 +33,28 @@ def brute_best_on_feature(x, Psi, scale, min_leaf):
         if best is None or score > best[1]:
             best = (threshold, score)
     return best
+
+
+def brute_wasserstein_1d_sq(left, right):
+    left_sorted = np.sort(left)
+    right_sorted = np.sort(right)
+    n_left = left_sorted.shape[0]
+    n_right = right_sorted.shape[0]
+    i = 0
+    j = 0
+    u = 0.0
+    total = 0.0
+    while i < n_left and j < n_right:
+        next_left = (i + 1) / n_left
+        next_right = (j + 1) / n_right
+        u_next = min(next_left, next_right)
+        total += (u_next - u) * float((left_sorted[i] - right_sorted[j]) ** 2)
+        u = u_next
+        if next_left <= u:
+            i += 1
+        if next_right <= u:
+            j += 1
+    return total
 
 
 def test_streaming_matches_brute_force_mmd():
@@ -210,6 +233,62 @@ def test_bounded_sweep_uses_interval_intersection_not_midpoint():
     assert 9.0 <= threshold < 10.0
 
 
+def test_split_candidate_positions_exact_mode_returns_all_valid_boundaries():
+    xs = np.array([0.0, 1.0, 1.0, 2.0, 3.0, 5.0])
+    positions = split_candidate_positions(xs, min_leaf=2, lo=-np.inf, hi=np.inf, max_cutpoints=None)
+    assert positions.tolist() == [2, 3]
+
+
+def test_split_candidate_positions_uses_all_boundaries_within_budget():
+    xs = np.array([1.0] * 100 + [2.0, 3.0])
+    positions = split_candidate_positions(xs, min_leaf=1, lo=-np.inf, hi=np.inf, max_cutpoints=5)
+    assert positions.tolist() == [99, 100]
+
+
+def test_split_candidate_positions_caps_by_rank_probes_and_repairs_plateaus():
+    xs = np.array([1.0] * 100 + list(range(2, 22)), dtype=float)
+    positions = split_candidate_positions(xs, min_leaf=1, lo=-np.inf, hi=np.inf, max_cutpoints=5)
+    assert positions.tolist() == [101, 105, 108, 112, 116]
+
+
+def test_split_candidate_positions_respects_bounds_before_snapping():
+    xs = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+    positions = split_candidate_positions(xs, min_leaf=1, lo=1.5, hi=2.5, max_cutpoints=3)
+    assert positions.tolist() == [1, 2]
+
+
+def test_split_candidate_positions_caps_over_bounded_valid_span():
+    xs = np.arange(200.0)
+    positions = split_candidate_positions(xs, min_leaf=1, lo=50.0, hi=120.0, max_cutpoints=8)
+    assert positions.tolist() == [54, 63, 72, 80, 89, 97, 106, 115]
+
+
+def test_capped_mean_embedding_scores_only_shared_grid():
+    x = np.arange(20.0)
+    psi = np.zeros((20, 1), dtype=float)
+    allowed = split_candidate_positions(np.sort(x, kind="stable"), min_leaf=1, lo=-np.inf, hi=np.inf, max_cutpoints=4)
+    disallowed = np.setdiff1d(np.arange(19), allowed)
+    best_disallowed = int(disallowed[len(disallowed) // 2])
+    psi[best_disallowed + 1 :] = 100.0
+    result = _best_split_on_feature(x, psi, scale=1.0, min_leaf=1, lo=-np.inf, hi=np.inf, max_cutpoints=4)
+    assert result is not None
+    threshold, _ = result
+    assert int(np.floor(threshold)) in allowed
+
+
+def test_capped_sliced_wasserstein_scores_only_shared_grid():
+    x = np.arange(20.0)
+    projected = np.zeros((20, 1), dtype=float)
+    allowed = split_candidate_positions(np.sort(x, kind="stable"), min_leaf=1, lo=-np.inf, hi=np.inf, max_cutpoints=4)
+    disallowed = np.setdiff1d(np.arange(19), allowed)
+    best_disallowed = int(disallowed[len(disallowed) // 2])
+    projected[best_disallowed + 1 :] = 100.0
+    result = _best_split_on_feature_sliced(x, projected, min_leaf=1, lo=-np.inf, hi=np.inf, max_cutpoints=4)
+    assert result is not None
+    threshold, _ = result
+    assert int(np.floor(threshold)) in allowed
+
+
 def test_empty_band_yields_no_split():
     rng = np.random.default_rng(1)
     X = rng.normal(size=(40, 1))
@@ -242,6 +321,59 @@ def test_wasserstein_1d_sq_matches_quantile_integral():
     unequal = _wasserstein_1d_sq(np.array([0.0]), np.array([2.0, 4.0]))
     # ∫_0^0.5 (0 - 2)^2 du + ∫_0.5^1 (0 - 4)^2 du
     assert np.isclose(unequal, 10.0)
+
+
+def test_wasserstein_1d_sq_matches_reference_for_random_unequal_sizes():
+    rng = np.random.default_rng(20)
+    size_pairs = [(1, 2), (2, 7), (3, 11), (7, 19), (13, 29), (31, 47)]
+    for n_left, n_right in size_pairs:
+        for _ in range(50):
+            left = rng.normal(size=n_left)
+            right = rng.normal(size=n_right)
+            assert np.isclose(
+                _wasserstein_1d_sq(left, right),
+                brute_wasserstein_1d_sq(left, right),
+                rtol=1e-12,
+                atol=1e-12,
+            )
+
+
+def test_sliced_wasserstein_one_dimensional_projection_is_not_repeated():
+    rng = np.random.default_rng(21)
+    n, p = 60, 3
+    X = rng.normal(size=(n, p))
+    Y = rng.normal(size=(n, 1))
+    Y += (X[:, 2] > 0.0)[:, None] * 2.0
+
+    many = SlicedWassersteinCriterion(n_projections=64, dim=1).best_split(
+        X, Y, [0, 1, 2], np.random.default_rng(0), min_leaf=4, threshold_bounds=None
+    )
+    one = SlicedWassersteinCriterion(n_projections=1, dim=1).best_split(
+        X, Y, [0, 1, 2], np.random.default_rng(1), min_leaf=4, threshold_bounds=None
+    )
+    ref = None
+    for feature in [0, 1, 2]:
+        found = _best_split_on_feature_sliced(X[:, feature], Y, min_leaf=4, lo=-np.inf, hi=np.inf)
+        if found is None:
+            continue
+        threshold, score = found
+        if ref is None or score > ref[2]:
+            ref = (feature, threshold, score)
+
+    assert many is not None
+    assert one is not None
+    assert ref is not None
+    assert many.feature == one.feature == ref[0]
+    assert np.isclose(many.threshold, one.threshold)
+    assert np.isclose(many.threshold, ref[1])
+    assert np.isclose(many.score, one.score)
+    assert np.isclose(many.score, ref[2])
+
+
+def test_sliced_wasserstein_sq_one_column_matches_1d_wasserstein():
+    left = np.array([[0.0], [2.0]])
+    right = np.array([[1.0], [3.0]])
+    assert np.isclose(_sliced_wasserstein_sq(left, right), _wasserstein_1d_sq(left[:, 0], right[:, 0]))
 
 
 def test_sliced_wasserstein_best_split_matches_projected_reference():
