@@ -88,3 +88,57 @@ def test_ablation_grid_runs_on_synthetic_dataset(monkeypatch, tmp_path):
     assert washout["rho_bar_mean"] <= 1.0
     assert "single_tree_std_mean" in washout
     assert list(tmp_path.glob("*.json"))
+
+
+def test_oracle_alpha_sweep_runs_on_synthetic_dataset(monkeypatch, tmp_path):
+    module = _load_module("run_oracle_alpha.py")
+    small = make_gaussian_copula(n=120, p=4, d=2, seed=0)
+    monkeypatch.setattr(module, "load_dataset", lambda name: small)
+
+    payload = module.run(
+        datasets=["copula_small"],
+        criteria=["mmd_rff"],
+        targets=["marginal", "parent"],
+        alphas=[0.0, 0.25],
+        seed=0,
+        repeats=1,
+        n_trees=8,
+        n_features=32,
+        max_cutpoints=8,
+        results_dir=tmp_path,
+    )
+
+    runs = payload["datasets"][0]["runs"]
+    assert payload["study"] == "run_oracle_alpha"
+    assert set(runs[0]["variants"]) == {
+        "raw",
+        "marginal_alpha_0",
+        "marginal_alpha_0.25",
+        "parent_alpha_0",
+        "parent_alpha_0.25",
+    }
+    assert {row["variant"] for row in payload["datasets"][0]["summary"]} >= {"raw", "parent_alpha_0.25"}
+    assert list(tmp_path.glob("*.json"))
+
+
+def test_synthetic_splitting_suite_runs_on_synthetic_dataset(monkeypatch, tmp_path):
+    module = _load_module("run_synthetic_splitting.py")
+    small = make_gaussian_copula(n=120, p=4, d=2, seed=0)
+    monkeypatch.setattr(module, "load_dataset", lambda name: small)
+
+    payload = module.run(
+        datasets=["copula_small"],
+        criteria=["cart", "mmd_rff"],
+        seed=0,
+        repeats=1,
+        n_trees=8,
+        n_features=32,
+        max_cutpoints=8,
+        results_dir=tmp_path,
+    )
+
+    assert payload["study"] == "run_synthetic_splitting"
+    summary = payload["datasets"][0]["summary"]
+    assert {row["criterion"] for row in summary} == {"cart", "mmd_rff"}
+    assert "rho_bar_mean" in summary[0]["washout"]
+    assert list(tmp_path.glob("*.json"))
