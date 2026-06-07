@@ -1,4 +1,6 @@
-# drforest
+<img src="assets/drforest_logo.png" width="50%">
+
+# drforest - scalable distributional random forests
 
 [![CI](https://img.shields.io/github/actions/workflow/status/silaskoemen/drforest/ci.yml?style=flat-square&branch=main)](https://github.com/silaskoemen/drforest/actions/workflows/ci.yml)
 [![conda-forge](https://img.shields.io/conda/vn/conda-forge/drforest?logoColor=white&logo=conda-forge&style=flat-square)](https://prefix.dev/channels/conda-forge/packages/drforest)
@@ -16,6 +18,6 @@ You can install the package in development mode using:
 git clone https://github.com/silaskoemen/drforest
 cd drforest
 
-pixi run pre-commit-install
+pixi run setup
 pixi run test
 ```
