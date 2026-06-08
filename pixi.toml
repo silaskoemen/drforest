@@ -47,6 +47,7 @@ loguru = ">=0.7.3,<0.8"
 
 [feature.bench.dependencies]
 scikit-learn = ">=1.4.4"
+openml = ">=0.12.2,<0.13"
 
 [feature.lint.dependencies]
 pre-commit = "*"
