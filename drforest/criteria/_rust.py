@@ -93,3 +93,84 @@ def best_cart_split(
         bounds,
         max_cutpoints,
     )
+
+
+def best_adaptive_complex_embedding_split(
+    X: np.ndarray,
+    psi: np.ndarray,
+    features: Sequence[int],
+    *,
+    selected_features: int,
+    min_leaf: int,
+    threshold_bounds: np.ndarray | None,
+    max_cutpoints: int | None,
+) -> tuple[int, float, float] | None:
+    if _drforest_core is None:
+        raise RuntimeError("Rust extension _drforest_core is not available")
+    X = np.ascontiguousarray(X, dtype=np.float64)
+    psi = np.ascontiguousarray(psi)
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2-D; got shape {X.shape}")
+    if psi.ndim != 2:
+        raise ValueError(f"psi must be 2-D; got shape {psi.shape}")
+    if X.shape[0] != psi.shape[0]:
+        raise ValueError(f"X and psi disagree on n: {X.shape[0]} vs {psi.shape[0]}")
+
+    psi_re = np.ascontiguousarray(np.real(psi), dtype=np.float64)
+    psi_im = np.ascontiguousarray(np.imag(psi), dtype=np.float64)
+    feature_ids = [int(feature) for feature in features]
+    bounds = None
+    if threshold_bounds is not None:
+        bounds_arr = np.ascontiguousarray(threshold_bounds, dtype=np.float64)
+        if bounds_arr.shape != (len(feature_ids), 2):
+            raise ValueError(f"threshold_bounds must have shape ({len(feature_ids)}, 2); got {bounds_arr.shape}")
+        bounds = bounds_arr
+
+    return _drforest_core.best_adaptive_complex_embedding_split(
+        X,
+        psi_re,
+        psi_im,
+        int(selected_features),
+        feature_ids,
+        int(min_leaf),
+        bounds,
+        max_cutpoints,
+    )
+
+
+def best_sliced_wasserstein_split(
+    X: np.ndarray,
+    projected: np.ndarray,
+    features: Sequence[int],
+    *,
+    min_leaf: int,
+    threshold_bounds: np.ndarray | None,
+    max_cutpoints: int | None,
+) -> tuple[int, float, float] | None:
+    if _drforest_core is None:
+        raise RuntimeError("Rust extension _drforest_core is not available")
+    X = np.ascontiguousarray(X, dtype=np.float64)
+    projected = np.ascontiguousarray(projected, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2-D; got shape {X.shape}")
+    if projected.ndim != 2:
+        raise ValueError(f"projected must be 2-D; got shape {projected.shape}")
+    if X.shape[0] != projected.shape[0]:
+        raise ValueError(f"X and projected disagree on n: {X.shape[0]} vs {projected.shape[0]}")
+
+    feature_ids = [int(feature) for feature in features]
+    bounds = None
+    if threshold_bounds is not None:
+        bounds_arr = np.ascontiguousarray(threshold_bounds, dtype=np.float64)
+        if bounds_arr.shape != (len(feature_ids), 2):
+            raise ValueError(f"threshold_bounds must have shape ({len(feature_ids)}, 2); got {bounds_arr.shape}")
+        bounds = bounds_arr
+
+    return _drforest_core.best_sliced_wasserstein_split(
+        X,
+        projected,
+        feature_ids,
+        int(min_leaf),
+        bounds,
+        max_cutpoints,
+    )

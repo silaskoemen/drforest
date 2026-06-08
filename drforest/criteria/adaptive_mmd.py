@@ -13,6 +13,7 @@ from collections.abc import Sequence
 import numpy as np
 from numpy.random import Generator
 
+import drforest.criteria._rust as _rust
 from drforest.criteria.base import (
     Criterion,
     Split,
@@ -83,6 +84,21 @@ class AdaptiveMmdCriterion(Criterion):
 
         rff = sample_rff(self.dim, self.pool_features, self.sigma, rng)
         psi = rff.transform(Y)
+
+        if _rust.rust_available():
+            found = _rust.best_adaptive_complex_embedding_split(
+                X,
+                psi,
+                features,
+                selected_features=self.selected_features,
+                min_leaf=min_leaf,
+                threshold_bounds=threshold_bounds,
+                max_cutpoints=max_cutpoints,
+            )
+            if found is None:
+                return None
+            feature, threshold, score = found
+            return Split(feature=feature, threshold=threshold, score=score)
 
         best: Split | None = None
         for j, f in enumerate(features):

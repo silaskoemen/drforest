@@ -7,6 +7,7 @@ from drforest.criteria.adaptive_mmd import (
     AdaptiveMmdCriterion,
     _best_split_on_feature_adaptive,
 )
+from drforest.criteria.anisotropic_mmd import AnisotropicMmdCriterion
 from drforest.criteria.base import _best_split_on_feature, split_candidate_positions
 from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
@@ -18,7 +19,7 @@ from drforest.criteria.sliced_wasserstein import (
     _wasserstein_1d_sq,
     _wasserstein_columns_sq,
 )
-from drforest.features.rff import fixed_bandwidth, sample_rff
+from drforest.features.rff import fixed_bandwidth, fixed_bandwidths, sample_rff
 
 
 def brute_best_on_feature(x, Psi, scale, min_leaf):
@@ -374,6 +375,29 @@ def test_mmd_from_data_sets_sigma():
     assert crit.sigma == 1.3
     assert crit.dim == 2
     assert crit.scale == 1.0 / 32
+
+
+def test_anisotropic_mmd_matches_scalar_mmd_in_one_dimension():
+    rng = np.random.default_rng(33)
+    n, p = 80, 3
+    X = rng.normal(size=(n, p))
+    Y = rng.normal(size=(n, 1))
+    features = [0, 1, 2]
+    seed = 34
+
+    scalar = MmdRffCriterion.from_data(Y, n_features=64, bandwidth_rule=fixed_bandwidth(1.2))
+    anisotropic = AnisotropicMmdCriterion.from_data(Y, n_features=64, bandwidth_rule=fixed_bandwidths(np.array([1.2])))
+    scalar_split = scalar.best_split(
+        X, Y, features, np.random.default_rng(seed), min_leaf=5, threshold_bounds=None, max_cutpoints=16
+    )
+    anisotropic_split = anisotropic.best_split(
+        X, Y, features, np.random.default_rng(seed), min_leaf=5, threshold_bounds=None, max_cutpoints=16
+    )
+
+    assert scalar_split is not None and anisotropic_split is not None
+    assert anisotropic_split.feature == scalar_split.feature
+    assert np.isclose(anisotropic_split.threshold, scalar_split.threshold)
+    assert np.isclose(anisotropic_split.score, scalar_split.score)
 
 
 def test_wasserstein_1d_sq_matches_quantile_integral():

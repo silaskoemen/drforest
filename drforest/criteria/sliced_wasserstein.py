@@ -12,6 +12,7 @@ from collections.abc import Sequence
 import numpy as np
 from numpy.random import Generator
 
+import drforest.criteria._rust as _rust
 from drforest.criteria.base import (
     Criterion,
     Split,
@@ -68,6 +69,21 @@ class SlicedWassersteinCriterion(Criterion):
         else:
             theta = _sample_unit_directions(self.dim, self.n_projections, rng)
             projected = np.ascontiguousarray(Y @ theta.T, dtype=np.float64)
+
+        if _rust.rust_available():
+            found = _rust.best_sliced_wasserstein_split(
+                X,
+                projected,
+                features,
+                min_leaf=min_leaf,
+                threshold_bounds=threshold_bounds,
+                max_cutpoints=max_cutpoints,
+            )
+            if found is None:
+                return None
+            feature, threshold, score = found
+            return Split(feature=feature, threshold=threshold, score=score)
+
         best: Split | None = None
         for j, f in enumerate(features):
             idx = _as_feature_index(f)

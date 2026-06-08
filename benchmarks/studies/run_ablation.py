@@ -26,11 +26,16 @@ from loguru import logger
 
 from benchmarks.results_io import write_json_result
 from drforest.criteria.adaptive_mmd import AdaptiveMmdCriterion
+from drforest.criteria.anisotropic_mmd import AnisotropicMmdCriterion
 from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
 from drforest.criteria.sliced_wasserstein import SlicedWassersteinCriterion
 from drforest.datasets import load_dataset
-from drforest.features.rff import median_heuristic, sample_rff
+from drforest.features.rff import (
+    coordinatewise_median_heuristic,
+    median_heuristic,
+    sample_rff,
+)
 from drforest.forest import DistributionalRandomForest
 from drforest.metrics import componentwise_crps, mean_energy_score, rmse
 from drforest.shrinkage import parent_target, shrink, shrink_to_target
@@ -107,6 +112,10 @@ def _criterion_factory(
         return lambda Y: CartCriterion()
     if criterion == "mmd_rff":
         return lambda Y: MmdRffCriterion.from_data(Y, n_features=n_features, bandwidth_rule=median_heuristic)
+    if criterion == "anisotropic_mmd":
+        return lambda Y: AnisotropicMmdCriterion.from_data(
+            Y, n_features=n_features, bandwidth_rule=coordinatewise_median_heuristic
+        )
     if criterion == "sliced_wasserstein":
         n_projections = n_features if sliced_projections is None else sliced_projections
         return lambda Y: SlicedWassersteinCriterion.from_data(Y, n_projections=n_projections)
