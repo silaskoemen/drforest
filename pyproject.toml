@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.13,<2"]
+build-backend = "maturin"
 
 [project]
 name = "drforest"
@@ -25,10 +25,12 @@ dependencies = [
 [project.urls]
 repository = "https://github.com/silaskoemen/drforest"
 
-[tool.setuptools.packages.find]
-include = ["drforest"]
-
 [project.scripts]
+
+[tool.maturin]
+manifest-path = "crates/drforest-py/Cargo.toml"
+module-name = "drforest._drforest_core"
+python-source = "."
 
 [tool.ruff]
 line-length = 88

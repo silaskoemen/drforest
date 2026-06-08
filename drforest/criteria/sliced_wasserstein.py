@@ -119,11 +119,40 @@ def _wasserstein_1d_sq(left: np.ndarray, right: np.ndarray) -> float:
     return float(np.sum(widths * diff**2))
 
 
+def _wasserstein_columns_sq(left: np.ndarray, right: np.ndarray) -> np.ndarray:
+    """Exact W2² per column for two matrices of projected samples."""
+    if left.ndim != 2 or right.ndim != 2:
+        raise ValueError("left and right samples must be two-dimensional")
+    n_left, n_cols = left.shape
+    n_right = right.shape[0]
+    if right.shape[1] != n_cols:
+        raise ValueError(f"left and right disagree on column count: {n_cols} vs {right.shape[1]}")
+    if n_left == 0 or n_right == 0:
+        raise ValueError("left and right samples must both be non-empty")
+
+    left_sorted = np.sort(left, axis=0)
+    right_sorted = np.sort(right, axis=0)
+    if n_left == n_right:
+        return np.mean((left_sorted - right_sorted) ** 2, axis=0)
+
+    left_jumps = np.arange(1, n_left, dtype=np.float64) / n_left
+    right_jumps = np.arange(1, n_right, dtype=np.float64) / n_right
+    breaks = np.concatenate(([0.0], left_jumps, right_jumps, [1.0]))
+    breaks.sort()
+    breaks = np.unique(breaks)
+
+    lower = breaks[:-1]
+    upper = breaks[1:]
+    widths = upper - lower
+    mid = 0.5 * (lower + upper)
+    left_idx = np.minimum((mid * n_left).astype(np.int64), n_left - 1)
+    right_idx = np.minimum((mid * n_right).astype(np.int64), n_right - 1)
+    diff = left_sorted[left_idx] - right_sorted[right_idx]
+    return np.sum(widths[:, None] * diff**2, axis=0)
+
+
 def _sliced_wasserstein_sq(left: np.ndarray, right: np.ndarray) -> float:
-    if left.shape[1] == 1:
-        return _wasserstein_1d_sq(left[:, 0], right[:, 0])
-    values = [_wasserstein_1d_sq(left[:, b], right[:, b]) for b in range(left.shape[1])]
-    return float(np.mean(values))
+    return float(np.mean(_wasserstein_columns_sq(left, right)))
 
 
 def _best_split_on_feature_sliced(

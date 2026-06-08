@@ -34,6 +34,18 @@ DEFAULT_DATASETS = ("paper_quantile_1", "paper_quantile_2", "paper_quantile_3", 
 DEFAULT_CRITERIA = ("cart", "mmd_rff", "sliced_wasserstein")
 METRICS = ("RMSE", "energy", "CRPS")
 DEFAULT_MAX_CUTPOINTS = 32
+DEFAULT_ADAPTIVE_SELECTED_FEATURES = 32
+
+
+def _split_feature_counts(forest: DistributionalRandomForest) -> list[int]:
+    counts = np.zeros(forest.trees[0].n_features_in, dtype=np.int64)
+    for tree in forest.trees:
+        internal = tree.feature[tree.feature >= 0]
+        if internal.shape[0] == 0:
+            continue
+        feature_ids, feature_counts = np.unique(internal, return_counts=True)
+        counts[feature_ids] += feature_counts
+    return [int(value) for value in counts]
 
 
 def _washout(
@@ -61,20 +73,30 @@ def _one_run(
     n_trees: int,
     n_features: int,
     max_cutpoints: int | None,
+    honesty_fraction: float,
+    sliced_projections: int | None = None,
+    adaptive_pool_features: int | None = None,
+    adaptive_selected_features: int = DEFAULT_ADAPTIVE_SELECTED_FEATURES,
 ) -> dict[str, Any]:
     train, test = _split(data.X.shape[0], test_fraction=0.25, seed=seed)
     X_train, Y_train = data.X[train], data.Y[train]
     X_test, Y_test = data.X[test], data.Y[test]
 
     forest = DistributionalRandomForest(
-        criterion_factory=_criterion_factory(criterion, n_features),
+        criterion_factory=_criterion_factory(
+            criterion,
+            n_features,
+            sliced_projections,
+            adaptive_pool_features,
+            adaptive_selected_features,
+        ),
         seed=seed,
         n_trees=n_trees,
         subsample=0.5,
         tree_params=TreeParams(
             min_samples_leaf=5,
             alpha=0.05,
-            honesty_fraction=0.5,
+            honesty_fraction=honesty_fraction,
             colsample=0.7,
             max_cutpoints=max_cutpoints,
         ),
@@ -88,6 +110,7 @@ def _one_run(
         "n_test": int(X_test.shape[0]),
         "scores": _scores(W, Y_train, Y_test),
         "washout": _washout(forest, X_test, Y_train, Y_test),
+        "split_feature_counts": _split_feature_counts(forest),
     }
 
 
@@ -100,9 +123,14 @@ def run(
     n_trees: int,
     n_features: int,
     max_cutpoints: int | None,
+    honesty_fractions,
+    sliced_projections: int | None = None,
+    adaptive_pool_features: int | None = None,
+    adaptive_selected_features: int = DEFAULT_ADAPTIVE_SELECTED_FEATURES,
     results_dir: Path | None = None,
     write_json: bool = True,
 ) -> dict[str, Any]:
+    resolved_adaptive_pool_features = n_features if adaptive_pool_features is None else adaptive_pool_features
     payload = {
         "study": STUDY_NAME,
         "params": {
@@ -113,6 +141,10 @@ def run(
             "n_trees": n_trees,
             "n_features": n_features,
             "max_cutpoints": max_cutpoints,
+            "honesty_fractions": list(honesty_fractions),
+            "sliced_projections": n_features if sliced_projections is None else sliced_projections,
+            "adaptive_pool_features": resolved_adaptive_pool_features,
+            "adaptive_selected_features": adaptive_selected_features,
         },
         "datasets": [],
     }
@@ -120,42 +152,58 @@ def run(
     for dataset in datasets:
         logger.info(f"📊 Running synthetic splitting suite on dataset {dataset!r}")
         data = load_dataset(dataset)
-        acc = {criterion: {m: [] for m in METRICS} for criterion in criteria}
-        washout: dict[str, list[dict[str, Any]]] = {criterion: [] for criterion in criteria}
+        cells = [
+            (criterion, float(honesty_fraction)) for honesty_fraction in honesty_fractions for criterion in criteria
+        ]
+        acc = {cell: {m: [] for m in METRICS} for cell in cells}
+        washout: dict[tuple[str, float], list[dict[str, Any]]] = {cell: [] for cell in cells}
+        split_counts = {cell: np.zeros(data.X.shape[1], dtype=np.int64) for cell in cells}
         run_records: list[dict[str, Any]] = []
 
         for r in range(repeats):
-            for criterion in criteria:
-                run_result = _one_run(
-                    data,
-                    criterion=criterion,
-                    seed=seed + r,
-                    n_trees=n_trees,
-                    n_features=n_features,
-                    max_cutpoints=max_cutpoints,
-                )
-                run_records.append(run_result)
-                scores = cast(dict[str, float], run_result["scores"])
-                for metric in METRICS:
-                    acc[criterion][metric].append(scores[metric])
-                washout[criterion].append(cast(dict[str, Any], run_result["washout"]))
+            for honesty_fraction in honesty_fractions:
+                for criterion in criteria:
+                    logger.info(f"Repeat: {r + 1}/{repeats} | criterion: {criterion} | honesty: {honesty_fraction:g}")
+                    run_result = _one_run(
+                        data,
+                        criterion=criterion,
+                        seed=seed + r,
+                        n_trees=n_trees,
+                        n_features=n_features,
+                        max_cutpoints=max_cutpoints,
+                        honesty_fraction=float(honesty_fraction),
+                        sliced_projections=sliced_projections,
+                        adaptive_pool_features=adaptive_pool_features,
+                        adaptive_selected_features=adaptive_selected_features,
+                    )
+                    run_result["honesty_fraction"] = float(honesty_fraction)
+                    run_records.append(run_result)
+                    cell_key = (criterion, float(honesty_fraction))
+                    scores = cast(dict[str, float], run_result["scores"])
+                    for metric in METRICS:
+                        acc[cell_key][metric].append(scores[metric])
+                    washout[cell_key].append(cast(dict[str, Any], run_result["washout"]))
+                    split_counts[cell_key] += np.asarray(run_result["split_feature_counts"], dtype=np.int64)
 
         logger.success(f"📊 Finished synthetic splitting suite on dataset {dataset!r}")
         logger.info(f"=== {dataset}  (n={data.X.shape[0]}, d={data.Y.shape[1]}, repeats={repeats}) ===")
-        header = f"{'criterion':<20}{'RMSE':>9}{'energy':>9}{'CRPS':>9}{'rho_bar':>9}"
+        header = f"{'criterion':<20}{'honesty':>9}{'RMSE':>9}{'energy':>9}{'CRPS':>9}{'rho_bar':>9}"
         logger.info(header)
         logger.info("-" * len(header))
         summary = []
-        for criterion in criteria:
-            cell = acc[criterion]
+        for criterion, honesty_fraction in cells:
+            cell_key = (criterion, honesty_fraction)
+            cell = acc[cell_key]
             values = {m: float(np.mean(cell[m])) for m in METRICS}
-            rho = float(np.nanmean([w["rho_bar"] for w in washout[criterion]]))
+            rho = float(np.nanmean([w["rho_bar"] for w in washout[cell_key]]))
             logger.info(
-                f"{criterion:<20}{values['RMSE']:>9.4f}{values['energy']:>9.4f}" f"{values['CRPS']:>9.4f}{rho:>9.4f}"
+                f"{criterion:<20}{honesty_fraction:>9.2f}{values['RMSE']:>9.4f}{values['energy']:>9.4f}"
+                f"{values['CRPS']:>9.4f}{rho:>9.4f}"
             )
             summary.append(
                 {
                     "criterion": criterion,
+                    "honesty_fraction": honesty_fraction,
                     "metrics": {
                         metric: {
                             "mean": float(np.mean(cell[metric])),
@@ -166,12 +214,13 @@ def run(
                     "washout": {
                         "rho_bar_mean": rho,
                         "single_tree_mean": {
-                            m: float(np.mean([w["single_tree_mean"][m] for w in washout[criterion]])) for m in METRICS
+                            m: float(np.mean([w["single_tree_mean"][m] for w in washout[cell_key]])) for m in METRICS
                         },
                         "single_tree_std_mean": {
-                            m: float(np.mean([w["single_tree_std"][m] for w in washout[criterion]])) for m in METRICS
+                            m: float(np.mean([w["single_tree_std"][m] for w in washout[cell_key]])) for m in METRICS
                         },
                     },
+                    "split_feature_counts": [int(value) for value in split_counts[cell_key]],
                 }
             )
         payload["datasets"].append(
@@ -200,6 +249,10 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200)
+    parser.add_argument("--honesty-fractions", nargs="+", type=float, default=[0.5])
+    parser.add_argument("--sliced-projections", type=int, default=None)
+    parser.add_argument("--adaptive-pool-features", type=int, default=None)
+    parser.add_argument("--adaptive-selected-features", type=int, default=DEFAULT_ADAPTIVE_SELECTED_FEATURES)
     parser.add_argument("--max-cutpoints", type=int, default=DEFAULT_MAX_CUTPOINTS)
     parser.add_argument("--all-cutpoints", action="store_true")
     parser.add_argument("--results-dir", type=Path, default=None)
@@ -215,6 +268,10 @@ def main() -> None:
         n_trees=args.n_trees,
         n_features=args.n_features,
         max_cutpoints=None if args.all_cutpoints else args.max_cutpoints,
+        honesty_fractions=args.honesty_fractions,
+        sliced_projections=args.sliced_projections,
+        adaptive_pool_features=args.adaptive_pool_features,
+        adaptive_selected_features=args.adaptive_selected_features,
         results_dir=args.results_dir,
         write_json=not args.no_write_json,
     )

@@ -1,0 +1,14 @@
+[package]
+name = "drforest-py"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "_drforest_core"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+drforest-core = { path = "../drforest-core" }
+numpy = "0.27"
+pyo3 = { version = "0.27", features = ["extension-module"] }

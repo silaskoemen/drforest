@@ -3,6 +3,10 @@ from typing import cast
 import numpy as np
 import pytest
 
+from drforest.criteria.adaptive_mmd import (
+    AdaptiveMmdCriterion,
+    _best_split_on_feature_adaptive,
+)
 from drforest.criteria.base import _best_split_on_feature, split_candidate_positions
 from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
@@ -12,6 +16,7 @@ from drforest.criteria.sliced_wasserstein import (
     _sample_unit_directions,
     _sliced_wasserstein_sq,
     _wasserstein_1d_sq,
+    _wasserstein_columns_sq,
 )
 from drforest.features.rff import fixed_bandwidth, sample_rff
 
@@ -71,6 +76,64 @@ def test_streaming_matches_brute_force_mmd():
     assert streamed is not None and brute is not None
     assert np.isclose(streamed[0], brute[0])
     assert np.isclose(streamed[1], brute[1])
+
+
+def test_adaptive_mmd_matches_mmd_when_selecting_full_pool():
+    rng = np.random.default_rng(23)
+    n, dim = 60, 2
+    x = rng.normal(size=n)
+    Y = rng.normal(size=(n, dim))
+    rff = sample_rff(dim, 64, 1.0, rng)
+    Psi = rff.transform(Y)
+
+    adaptive = _best_split_on_feature_adaptive(x, Psi, 64, 5, -np.inf, np.inf, max_cutpoints=16)
+    mmd = _best_split_on_feature(x, Psi, scale=1.0 / 64, min_leaf=5, lo=-np.inf, hi=np.inf, max_cutpoints=16)
+
+    assert adaptive is not None and mmd is not None
+    assert np.isclose(adaptive[0], mmd[0])
+    assert np.isclose(adaptive[1], mmd[1])
+
+
+def test_adaptive_mmd_best_split_matches_projected_reference():
+    rng = np.random.default_rng(24)
+    n, p, dim = 70, 3, 2
+    X = rng.normal(size=(n, p))
+    Y = rng.normal(size=(n, dim))
+    Y += (X[:, 1] > 0.0)[:, None] * np.array([0.0, 2.5])
+    features = [0, 1, 2]
+    seed = 25
+
+    split = AdaptiveMmdCriterion.from_data(
+        Y,
+        pool_features=32,
+        selected_features=8,
+        bandwidth_rule=fixed_bandwidth(1.0),
+    ).best_split(X, Y, features, np.random.default_rng(seed), min_leaf=4, threshold_bounds=None, max_cutpoints=12)
+
+    rff = sample_rff(dim, 32, 1.0, np.random.default_rng(seed))
+    psi = rff.transform(Y)
+    ref = None
+    for feature in features:
+        found = _best_split_on_feature_adaptive(
+            X[:, feature],
+            psi,
+            selected_features=8,
+            min_leaf=4,
+            lo=-np.inf,
+            hi=np.inf,
+            max_cutpoints=12,
+        )
+        if found is None:
+            continue
+        threshold, score = found
+        if ref is None or score > ref[2]:
+            ref = (feature, threshold, score)
+
+    assert split is not None
+    assert ref is not None
+    assert split.feature == ref[0]
+    assert np.isclose(split.threshold, ref[1])
+    assert np.isclose(split.score, ref[2])
 
 
 def test_scaled_score_equals_kernel_mmd():
@@ -374,6 +437,16 @@ def test_sliced_wasserstein_sq_one_column_matches_1d_wasserstein():
     left = np.array([[0.0], [2.0]])
     right = np.array([[1.0], [3.0]])
     assert np.isclose(_sliced_wasserstein_sq(left, right), _wasserstein_1d_sq(left[:, 0], right[:, 0]))
+
+
+def test_wasserstein_columns_sq_matches_columnwise_reference():
+    rng = np.random.default_rng(22)
+    left = rng.normal(size=(17, 5))
+    right = rng.normal(size=(31, 5))
+
+    reference = np.array([_wasserstein_1d_sq(left[:, j], right[:, j]) for j in range(left.shape[1])])
+
+    assert np.allclose(_wasserstein_columns_sq(left, right), reference)
 
 
 def test_sliced_wasserstein_best_split_matches_projected_reference():

@@ -37,6 +37,7 @@ catboost_info/
 .ve
 bin
 build
+target/
 develop-eggs
 dist
 eggs

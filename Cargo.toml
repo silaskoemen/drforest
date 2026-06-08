@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/drforest-core", "crates/drforest-py"]
+resolver = "3"

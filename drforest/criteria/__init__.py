@@ -1,3 +1,4 @@
+from drforest.criteria.adaptive_mmd import AdaptiveMmdCriterion
 from drforest.criteria.base import (
     Criterion,
     MeanEmbeddingCriterion,
@@ -9,6 +10,7 @@ from drforest.criteria.mmd_rff import MmdRffCriterion
 from drforest.criteria.sliced_wasserstein import SlicedWassersteinCriterion
 
 __all__ = [
+    "AdaptiveMmdCriterion",
     "CartCriterion",
     "Criterion",
     "MeanEmbeddingCriterion",

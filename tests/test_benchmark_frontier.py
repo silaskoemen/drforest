@@ -7,6 +7,9 @@ table) on a synthetic dataset, so it runs in CI without network access.
 import importlib.util
 from pathlib import Path
 
+import numpy as np
+
+from benchmarks.real_datasets import RealDataset, split_arrays
 from benchmarks.results_io import write_json_result
 from drforest.datasets import make_gaussian_copula
 
@@ -134,6 +137,7 @@ def test_synthetic_splitting_suite_runs_on_synthetic_dataset(monkeypatch, tmp_pa
         n_trees=8,
         n_features=32,
         max_cutpoints=8,
+        honesty_fractions=[0.5],
         results_dir=tmp_path,
     )
 
@@ -141,4 +145,81 @@ def test_synthetic_splitting_suite_runs_on_synthetic_dataset(monkeypatch, tmp_pa
     summary = payload["datasets"][0]["summary"]
     assert {row["criterion"] for row in summary} == {"cart", "mmd_rff"}
     assert "rho_bar_mean" in summary[0]["washout"]
+    assert list(tmp_path.glob("*.json"))
+
+
+def test_synthetic_splitting_suite_runs_adaptive_mmd(monkeypatch, tmp_path):
+    module = _load_module("run_synthetic_splitting.py")
+    small = make_gaussian_copula(n=120, p=4, d=2, seed=0)
+    monkeypatch.setattr(module, "load_dataset", lambda name: small)
+
+    payload = module.run(
+        datasets=["copula_small"],
+        criteria=["adaptive_mmd"],
+        seed=0,
+        repeats=1,
+        n_trees=8,
+        n_features=16,
+        max_cutpoints=8,
+        honesty_fractions=[0.5, 0.0],
+        adaptive_pool_features=32,
+        adaptive_selected_features=4,
+        results_dir=tmp_path,
+    )
+
+    summary = payload["datasets"][0]["summary"]
+    assert {row["criterion"] for row in summary} == {"adaptive_mmd"}
+    assert {row["honesty_fraction"] for row in summary} == {0.5, 0.0}
+    assert len(summary[0]["split_feature_counts"]) == small.X.shape[1]
+    assert sum(summary[0]["split_feature_counts"]) > 0
+    assert payload["params"]["adaptive_pool_features"] == 32
+    assert payload["params"]["adaptive_selected_features"] == 4
+
+
+def test_real_dataset_split_arrays_is_deterministic():
+    X = np.arange(40, dtype=np.float64).reshape(20, 2)
+    Y = np.arange(20, dtype=np.float64)
+
+    first = split_arrays("toy", X, Y, n_train=12, n_test=5, seed=3)
+    second = split_arrays("toy", X, Y, n_train=12, n_test=5, seed=3)
+
+    assert isinstance(first, RealDataset)
+    assert first.X_train.shape == (12, 2)
+    assert first.Y_train.shape == (12, 1)
+    assert first.X_test.shape == (5, 2)
+    assert first.Y_test.shape == (5, 1)
+    assert first.name == "toy"
+    assert (first.X_train == second.X_train).all()
+    assert (first.Y_test == second.Y_test).all()
+
+
+def test_real_benchmark_runs_on_monkeypatched_dataset(monkeypatch, tmp_path):
+    module = _load_module("run_real_benchmark.py")
+    X = np.linspace(-1.0, 1.0, 180).reshape(90, 2)
+    Y = (X[:, :1] ** 2) + 0.1 * X[:, 1:]
+
+    def load_small(name, *, n_train, n_test, seed):
+        return split_arrays(name, X, Y, n_train=n_train, n_test=n_test, seed=seed)
+
+    monkeypatch.setattr(module, "make_real_dataset", load_small)
+
+    payload = module.run(
+        datasets=["toy_real"],
+        criteria=["cart", "mmd_rff"],
+        honesty_fractions=[0.5, 0.0],
+        seed=0,
+        repeats=1,
+        n_train=50,
+        n_test=20,
+        n_trees=5,
+        n_features=16,
+        max_cutpoints=8,
+        results_dir=tmp_path,
+    )
+
+    assert payload["study"] == "run_real_benchmark"
+    assert len(payload["runs"]) == 4
+    assert {row["honesty_fraction"] for row in payload["summary"]} == {0.5, 0.0}
+    assert all(row["fit_time"] >= 0.0 for row in payload["runs"])
+    assert all(row["weight_time"] >= 0.0 for row in payload["runs"])
     assert list(tmp_path.glob("*.json"))

@@ -11,7 +11,7 @@ name = "pixi-build-python"
 version = "*"
 [package.host-dependencies]
 python = ">=3.11"
-hatchling = "*"
+maturin = "*"
 uv = "*"
 
 [dependencies]
@@ -32,17 +32,21 @@ test-coverage = "pytest --cov=drforest --cov-report=xml --cov-report=term-missin
 
 [feature.build.dependencies]
 python = "*"
-hatchling = "*"
 python-build = "*"
 twine = ">=6"
+maturin = "*"
 [feature.build.tasks]
 build-wheel = "python -m build --no-isolation ."
 check-wheel = "twine check dist/*"
+build-rust = "maturin develop --release"
 
 [feature.dev.dependencies]
 ipykernel = "*"
 pip = "*"
 loguru = ">=0.7.3,<0.8"
+
+[feature.bench.dependencies]
+scikit-learn = ">=1.4.4"
 
 [feature.lint.dependencies]
 pre-commit = "*"
@@ -66,7 +70,7 @@ python = "3.13.*"
 python = "3.14.*"
 
 [environments]
-default = ["test", "build", "lint", "dev"]
+default = ["test", "build", "lint", "dev", "bench"]
 py311 = ["py311", "test"]
 py312 = ["py312", "test"]
 py313 = ["py313", "test"]

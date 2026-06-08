@@ -25,6 +25,7 @@ import numpy as np
 from loguru import logger
 
 from benchmarks.results_io import write_json_result
+from drforest.criteria.adaptive_mmd import AdaptiveMmdCriterion
 from drforest.criteria.cart import CartCriterion
 from drforest.criteria.mmd_rff import MmdRffCriterion
 from drforest.criteria.sliced_wasserstein import SlicedWassersteinCriterion
@@ -43,6 +44,7 @@ DEFAULT_DATASETS = ("enb", "shrinkage_toy", "paper_quantile_2")
 METRICS = ("RMSE", "energy", "CRPS")
 STUDY_NAME = "run_ablation"
 DEFAULT_MAX_CUTPOINTS = 32
+DEFAULT_ADAPTIVE_SELECTED_FEATURES = 32
 
 
 def _split(n: int, *, test_fraction: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -94,13 +96,28 @@ def _washout(
     }
 
 
-def _criterion_factory(criterion: str, n_features: int):
+def _criterion_factory(
+    criterion: str,
+    n_features: int,
+    sliced_projections: int | None = None,
+    adaptive_pool_features: int | None = None,
+    adaptive_selected_features: int = DEFAULT_ADAPTIVE_SELECTED_FEATURES,
+):
     if criterion == "cart":
         return lambda Y: CartCriterion()
     if criterion == "mmd_rff":
         return lambda Y: MmdRffCriterion.from_data(Y, n_features=n_features, bandwidth_rule=median_heuristic)
     if criterion == "sliced_wasserstein":
-        return lambda Y: SlicedWassersteinCriterion.from_data(Y, n_projections=n_features)
+        n_projections = n_features if sliced_projections is None else sliced_projections
+        return lambda Y: SlicedWassersteinCriterion.from_data(Y, n_projections=n_projections)
+    if criterion == "adaptive_mmd":
+        pool_features = n_features if adaptive_pool_features is None else adaptive_pool_features
+        return lambda Y: AdaptiveMmdCriterion.from_data(
+            Y,
+            pool_features=pool_features,
+            selected_features=adaptive_selected_features,
+            bandwidth_rule=median_heuristic,
+        )
     raise ValueError(f"unknown criterion {criterion!r}")
 
 
@@ -113,20 +130,30 @@ def _one_run(
     n_features: int,
     shrink_features: int,
     max_cutpoints: int | None,
+    honesty_fraction: float,
+    sliced_projections: int | None = None,
+    adaptive_pool_features: int | None = None,
+    adaptive_selected_features: int = DEFAULT_ADAPTIVE_SELECTED_FEATURES,
 ) -> dict[str, Any]:
     train, test = _split(data.X.shape[0], test_fraction=0.25, seed=seed)
     X_train, Y_train = data.X[train], data.Y[train]
     X_test, Y_test = data.X[test], data.Y[test]
 
     forest = DistributionalRandomForest(
-        criterion_factory=_criterion_factory(criterion, n_features),
+        criterion_factory=_criterion_factory(
+            criterion,
+            n_features,
+            sliced_projections,
+            adaptive_pool_features,
+            adaptive_selected_features,
+        ),
         seed=seed,
         n_trees=n_trees,
         subsample=0.5,
         tree_params=TreeParams(
             min_samples_leaf=5,
             alpha=0.05,
-            honesty_fraction=0.5,
+            honesty_fraction=honesty_fraction,
             colsample=0.7,
             max_cutpoints=max_cutpoints,
         ),
@@ -166,9 +193,14 @@ def run(
     n_features: int,
     shrink_features: int,
     max_cutpoints: int | None,
+    honesty_fraction: float = 0.5,
+    sliced_projections: int | None = None,
+    adaptive_pool_features: int | None = None,
+    adaptive_selected_features: int = DEFAULT_ADAPTIVE_SELECTED_FEATURES,
     results_dir: Path | None = None,
     write_json: bool = True,
 ) -> dict[str, Any]:
+    resolved_adaptive_pool_features = n_features if adaptive_pool_features is None else adaptive_pool_features
     payload = {
         "study": STUDY_NAME,
         "params": {
@@ -179,6 +211,10 @@ def run(
             "n_features": n_features,
             "shrink_features": shrink_features,
             "max_cutpoints": max_cutpoints,
+            "honesty_fraction": honesty_fraction,
+            "sliced_projections": n_features if sliced_projections is None else sliced_projections,
+            "adaptive_pool_features": resolved_adaptive_pool_features,
+            "adaptive_selected_features": adaptive_selected_features,
         },
         "datasets": [],
     }
@@ -193,6 +229,7 @@ def run(
 
         for r in range(repeats):
             for criterion in CRITERIA:
+                logger.info(f"Run {r+1}/{repeats} | criterion {criterion}")
                 run_result = _one_run(
                     data,
                     criterion=criterion,
@@ -201,6 +238,10 @@ def run(
                     n_features=n_features,
                     shrink_features=shrink_features,
                     max_cutpoints=max_cutpoints,
+                    honesty_fraction=honesty_fraction,
+                    sliced_projections=sliced_projections,
+                    adaptive_pool_features=adaptive_pool_features,
+                    adaptive_selected_features=adaptive_selected_features,
                 )
                 run_records.append(run_result)
                 washout[criterion].append(cast(dict[str, Any], run_result["washout"]))
@@ -273,6 +314,10 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200)
+    parser.add_argument("--honesty-fraction", type=float, default=0.5)
+    parser.add_argument("--sliced-projections", type=int, default=None)
+    parser.add_argument("--adaptive-pool-features", type=int, default=None)
+    parser.add_argument("--adaptive-selected-features", type=int, default=DEFAULT_ADAPTIVE_SELECTED_FEATURES)
     parser.add_argument("--shrink-features", type=int, default=1000)
     parser.add_argument("--max-cutpoints", type=int, default=DEFAULT_MAX_CUTPOINTS)
     parser.add_argument("--all-cutpoints", action="store_true")
@@ -289,6 +334,10 @@ def main() -> None:
         n_features=args.n_features,
         shrink_features=args.shrink_features,
         max_cutpoints=None if args.all_cutpoints else args.max_cutpoints,
+        honesty_fraction=args.honesty_fraction,
+        sliced_projections=args.sliced_projections,
+        adaptive_pool_features=args.adaptive_pool_features,
+        adaptive_selected_features=args.adaptive_selected_features,
         results_dir=args.results_dir,
         write_json=not args.no_write_json,
     )
