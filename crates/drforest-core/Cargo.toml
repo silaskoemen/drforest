@@ -6,3 +6,6 @@ edition = "2024"
 [lib]
 name = "drforest_core"
 path = "src/lib.rs"
+
+[dependencies]
+rayon = "1"

@@ -320,7 +320,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS))
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--repeats", type=int, default=5)
+    parser.add_argument("--repeats", type=int, default=10)
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200)
     parser.add_argument("--honesty-fraction", type=float, default=0.5)

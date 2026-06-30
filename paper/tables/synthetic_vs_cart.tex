@@ -1,0 +1,31 @@
+\begin{table}[h]
+  \centering
+  \caption{Paired differences (criterion $-$ \texttt{cart}). Negative means the row improves over the reference; values are mean $\pm$ paired SE with seed-level win rate.}
+  \label{tab:synthetic}
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tabular}{lccccccc}
+    \toprule
+    dataset & $n_{\mathrm{tr}}$ & honesty & criterion & pairs & $\Delta$RMSE & $\Delta$CRPS & $\Delta$energy \\
+    \midrule
+    paper\_quantile\_1 & 1500 & 0 & adaptive\_mmd & 10 & -0.0069 $\pm$ 0.0012 (90\%) & -0.0032 $\pm$ 0.0006 (100\%) & -0.0032 $\pm$ 0.0006 (100\%) \\
+    paper\_quantile\_1 & 1500 & 0 & mmd\_rff & 10 & -0.0026 $\pm$ 0.0011 (80\%) & -0.0006 $\pm$ 0.0006 (60\%) & -0.0006 $\pm$ 0.0006 (60\%) \\
+    paper\_quantile\_1 & 1500 & 0 & sliced\_wasserstein & 10 & -0.0011 $\pm$ 0.0008 (60\%) & -0.0001 $\pm$ 0.0005 (40\%) & -0.0001 $\pm$ 0.0005 (40\%) \\
+    paper\_quantile\_1 & 1500 & 0.5 & adaptive\_mmd & 10 & +0.0003 $\pm$ 0.0006 (20\%) & +0.0001 $\pm$ 0.0003 (30\%) & +0.0001 $\pm$ 0.0003 (30\%) \\
+    paper\_quantile\_1 & 1500 & 0.5 & mmd\_rff & 10 & +0.0002 $\pm$ 0.0003 (40\%) & +0.0001 $\pm$ 0.0002 (30\%) & +0.0001 $\pm$ 0.0002 (30\%) \\
+    paper\_quantile\_1 & 1500 & 0.5 & sliced\_wasserstein & 10 & -0.0000 $\pm$ 0.0004 (50\%) & -0.0001 $\pm$ 0.0002 (50\%) & -0.0001 $\pm$ 0.0002 (50\%) \\
+    paper\_quantile\_2 & 1500 & 0 & adaptive\_mmd & 10 & -0.0082 $\pm$ 0.0018 (100\%) & -0.0089 $\pm$ 0.0011 (100\%) & -0.0089 $\pm$ 0.0011 (100\%) \\
+    paper\_quantile\_2 & 1500 & 0 & mmd\_rff & 10 & -0.0026 $\pm$ 0.0024 (70\%) & -0.0060 $\pm$ 0.0014 (90\%) & -0.0060 $\pm$ 0.0014 (90\%) \\
+    paper\_quantile\_2 & 1500 & 0 & sliced\_wasserstein & 10 & +0.0010 $\pm$ 0.0016 (30\%) & -0.0054 $\pm$ 0.0010 (100\%) & -0.0054 $\pm$ 0.0010 (100\%) \\
+    paper\_quantile\_2 & 1500 & 0.5 & adaptive\_mmd & 10 & +0.0001 $\pm$ 0.0005 (70\%) & -0.0105 $\pm$ 0.0011 (100\%) & -0.0105 $\pm$ 0.0011 (100\%) \\
+    paper\_quantile\_2 & 1500 & 0.5 & mmd\_rff & 10 & +0.0003 $\pm$ 0.0004 (40\%) & -0.0105 $\pm$ 0.0009 (100\%) & -0.0105 $\pm$ 0.0009 (100\%) \\
+    paper\_quantile\_2 & 1500 & 0.5 & sliced\_wasserstein & 10 & +0.0007 $\pm$ 0.0006 (40\%) & -0.0105 $\pm$ 0.0011 (100\%) & -0.0105 $\pm$ 0.0011 (100\%) \\
+    paper\_quantile\_3 & 1500 & 0 & adaptive\_mmd & 10 & -0.0057 $\pm$ 0.0017 (90\%) & -0.0043 $\pm$ 0.0015 (80\%) & -0.0043 $\pm$ 0.0015 (80\%) \\
+    paper\_quantile\_3 & 1500 & 0 & mmd\_rff & 10 & -0.0018 $\pm$ 0.0015 (80\%) & -0.0023 $\pm$ 0.0012 (80\%) & -0.0023 $\pm$ 0.0012 (80\%) \\
+    paper\_quantile\_3 & 1500 & 0 & sliced\_wasserstein & 10 & +0.0015 $\pm$ 0.0015 (40\%) & -0.0021 $\pm$ 0.0009 (70\%) & -0.0021 $\pm$ 0.0009 (70\%) \\
+    paper\_quantile\_3 & 1500 & 0.5 & adaptive\_mmd & 10 & +0.0007 $\pm$ 0.0005 (30\%) & -0.0034 $\pm$ 0.0008 (100\%) & -0.0034 $\pm$ 0.0008 (100\%) \\
+    paper\_quantile\_3 & 1500 & 0.5 & mmd\_rff & 10 & +0.0003 $\pm$ 0.0004 (50\%) & -0.0033 $\pm$ 0.0006 (100\%) & -0.0033 $\pm$ 0.0006 (100\%) \\
+    paper\_quantile\_3 & 1500 & 0.5 & sliced\_wasserstein & 10 & +0.0004 $\pm$ 0.0003 (30\%) & -0.0030 $\pm$ 0.0004 (100\%) & -0.0030 $\pm$ 0.0004 (100\%) \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}

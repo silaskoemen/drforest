@@ -48,6 +48,7 @@ def _fit_and_score(
     n_features: int,
     max_cutpoints: int | None,
     honesty_fraction: float,
+    sliced_projections: int | None,
     adaptive_pool_features: int | None,
     adaptive_selected_features: int,
     profile_output: Path | None,
@@ -57,7 +58,7 @@ def _fit_and_score(
         criterion_factory=_criterion_factory(
             criterion,
             n_features,
-            None,
+            sliced_projections,
             adaptive_pool_features,
             adaptive_selected_features,
         ),
@@ -127,6 +128,7 @@ def run(
     n_trees: int,
     n_features: int,
     max_cutpoints: int | None,
+    sliced_projections: int | None = None,
     adaptive_pool_features: int | None = None,
     adaptive_selected_features: int = DEFAULT_ADAPTIVE_SELECTED_FEATURES,
     results_dir: Path | None = None,
@@ -147,6 +149,7 @@ def run(
             "n_trees": n_trees,
             "n_features": n_features,
             "max_cutpoints": max_cutpoints,
+            "sliced_projections": n_features if sliced_projections is None else sliced_projections,
             "adaptive_pool_features": resolved_adaptive_pool_features,
             "adaptive_selected_features": adaptive_selected_features,
         },
@@ -193,6 +196,7 @@ def run(
                         n_features=n_features,
                         max_cutpoints=max_cutpoints,
                         honesty_fraction=float(honesty_fraction),
+                        sliced_projections=sliced_projections,
                         adaptive_pool_features=adaptive_pool_features,
                         adaptive_selected_features=adaptive_selected_features,
                         profile_output=profile_output,
@@ -240,13 +244,14 @@ def main() -> None:
     parser.add_argument("--criteria", nargs="+", default=list(DEFAULT_CRITERIA))
     parser.add_argument("--honesty-fractions", nargs="+", type=float, default=list(DEFAULT_HONESTY_FRACTIONS))
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--repeats", type=int, default=10)
     parser.add_argument("--n-train", type=int, default=300)
     parser.add_argument("--n-test", type=int, default=100)
     parser.add_argument("--n-trees", type=int, default=100)
     parser.add_argument("--n-features", type=int, default=200)
     parser.add_argument("--max-cutpoints", type=int, default=DEFAULT_MAX_CUTPOINTS)
     parser.add_argument("--all-cutpoints", action="store_true")
+    parser.add_argument("--sliced-projections", type=int, default=None)
     parser.add_argument("--adaptive-pool-features", type=int, default=None)
     parser.add_argument("--adaptive-selected-features", type=int, default=DEFAULT_ADAPTIVE_SELECTED_FEATURES)
     parser.add_argument("--results-dir", type=Path, default=None)
@@ -265,6 +270,7 @@ def main() -> None:
         n_trees=args.n_trees,
         n_features=args.n_features,
         max_cutpoints=None if args.all_cutpoints else args.max_cutpoints,
+        sliced_projections=args.sliced_projections,
         adaptive_pool_features=args.adaptive_pool_features,
         adaptive_selected_features=args.adaptive_selected_features,
         results_dir=args.results_dir,

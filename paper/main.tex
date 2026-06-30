@@ -3,12 +3,17 @@
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{adjustbox}
 \usepackage{hyperref}
 \usepackage[numbers,sort&compress]{natbib}
 
-\title{Mean Splitting is Hard to Beat for Univariate Distributional Forests}
+\title{Distributional Split Criteria for Random Forests:\\
+Extensions, Shrinkage, and the Robustness of Mean Splitting}
 \author{Silas Koemen}
 \date{\today}
+
+\emergencystretch=3em
 
 \newcommand{\drf}{\mathrm{DRF}}
 \newcommand{\mmd}{\mathrm{MMD}}
@@ -18,18 +23,29 @@
 \maketitle
 
 \begin{abstract}
-Distributional random forests replace mean-based CART splitting with
-distributional split criteria, such as maximum mean discrepancy, in order to
-adapt forest weights to the full conditional law of a response.  In univariate
-tabular regression, however, the extra sensitivity is not automatically useful:
-most finite samples appear to be dominated by location signal, while
-higher-order distributional structure is weak or too noisy to estimate at split
-time.  Across synthetic diagnostics, oracle comparisons, adaptive-frequency
-variants, multivariate probes, and real-data benchmarks, we find that
-CART-style splitting is the stronger default for univariate distributional
-prediction.  The evidence supports a simple characterization: distributional
-splitting helps only when non-location structure is both present and estimable;
-otherwise it dilutes split-selection power away from the mean.
+Distributional random forests replace mean-based CART splitting with criteria
+that compare the full conditional response distribution in candidate children.
+We implement and systematically study a family of such criteria inside a single
+honest-forest implementation: isotropic random-Fourier-feature maximum mean
+discrepancy (MMD), an anisotropic diagonal-bandwidth variant, an adaptive
+per-split frequency-selection variant, and a non-kernel sliced-Wasserstein
+criterion, together with post-hoc kernel-mean shrinkage of the forest weights.
+Using paired-seed comparisons across synthetic quantile mechanisms, real
+univariate benchmarks, a California-housing subsample curve, and multivariate
+synthetic and real responses, we characterize where each extension pays.  Three
+findings recur.  First, among distributional criteria ordinary isotropic MMD is
+already close to best in class: the anisotropic, adaptive-frequency, and
+sliced-Wasserstein extensions, and post-hoc shrinkage, do not systematically
+improve on it.  Second, on scalar tabular regression mean-based CART splitting
+remains the robust default and wins many cells.  Third, multivariate responses
+are the regime where distributional splitting clearly earns its keep, most
+sharply on a pure-dependence copula where the energy score separates the
+criteria even though marginal CRPS does not.  The evidence supports a simple
+allocation story: distributional splitting helps only when non-location
+structure is both present and estimable; otherwise it dilutes split-selection
+power away from the mean.  All criteria, the honest forest, and the
+paired-comparison harness are implemented in the open-source \texttt{drforest}
+library, whose Rust-backed split search makes broad criterion sweeps inexpensive.
 \end{abstract}
 
 \section{Question}
@@ -42,12 +58,17 @@ full response distributions in candidate children \citep{cevid2022}.  This is a
 natural generalization, especially for multivariate responses where a scalar
 ordering or separate marginal quantile fits are unsatisfactory.
 
-The narrower question studied here is deliberately less ambitious:
-\emph{for univariate tabular regression, is distributional splitting a better
-default than CART-style mean splitting?}  This note records a negative answer
-with a positive interpretation.  CART-style splitting is difficult to beat in
-this regime, not because distributional criteria are incoherent, but because the
-finite-sample split-selection problem is usually mean dominated.
+This note studies that design space directly.  Inside one honest-forest
+implementation we add four distributional split criteria---isotropic MMD, a
+diagonal-bandwidth anisotropic variant, an adaptive per-split
+frequency-selection variant, and sliced Wasserstein---and a family of post-hoc
+shrinkage variants, and compare them by paired seed.  Two questions organize the
+study: \emph{among distributional criteria, does any extension beat the plainest
+MMD?} and \emph{against mean splitting, when is distributional splitting worth
+its variance?}  The answers are, respectively, ``not systematically'' and ``for
+multivariate responses and a few structured scalar problems,'' with CART the
+robust default elsewhere.  We test the multivariate regime explicitly, since it
+is what motivates distributional forests in the first place.
 
 \section{Split Criteria as Signal Allocation}
 
@@ -74,112 +95,158 @@ higher-order distributional structure.  MMD should win only when the additional
 structure is strong enough, or the sample size large enough, for its split-time
 signal-to-noise ratio to exceed the cost of estimating it.
 
+We compare five criteria: CART; isotropic Gaussian RFF MMD (\texttt{mmd\_rff});
+diagonal-bandwidth MMD (\texttt{anisotropic\_mmd}); an overcomplete RFF pool with
+per-split top-$k$ frequency selection (\texttt{adaptive\_mmd}); and a non-kernel
+sliced-Wasserstein criterion.\footnote{Diagonal-bandwidth MMD is reported only
+for multivariate responses.  On a one-dimensional response it is not a distinct
+estimator: the coordinatewise median bandwidth coincides with the Euclidean
+median, and the length-one frequency draw is the same realization as the
+isotropic scalar-scale draw, so \texttt{anisotropic\_mmd} reproduces
+\texttt{mmd\_rff} bit-for-bit and is omitted from the scalar tables.}
+
 \section{Evidence}
 
 The experiments were run as paired-seed comparisons: the train/test split,
 forest seeds, tree hyperparameters, honesty setting, and cutpoint grid were held
 fixed while varying only the split criterion.  Metrics are RMSE for the
-conditional mean and CRPS / energy score for distributional prediction.
+conditional mean and CRPS / energy score for distributional prediction.  In
+every table a negative difference means the row improves over the reference, and
+the parenthetical is the seed-level win rate.
 
 \paragraph{Synthetic diagnostics.}
-The first set of experiments swept the univariate synthetic mechanisms used in
-the DRF literature, plus targeted variants designed to isolate mean shifts,
-scale shifts, quantile changes, and weak higher-moment effects.  CART dominated
-or tied MMD in the regimes where the conditional law was primarily location
-driven.  MMD became plausible only when higher-order structure was deliberately
-made large enough to be visible at split time.
+The first set of experiments swept the univariate synthetic quantile mechanisms
+used in the DRF literature (Table~\ref{tab:synthetic}).  When the conditional law
+carries deliberately strong non-location structure, distributional splitting
+pays: on \texttt{paper\_quantile\_2} and \texttt{paper\_quantile\_3} with honesty
+$0.5$, every distributional criterion improves CRPS and energy over CART with a
+100\% win rate while leaving RMSE essentially unchanged.  On the more
+location-driven \texttt{paper\_quantile\_1} the comparison is a wash.  Honesty is
+a visible lever in its own right: the gap between criteria at honesty $0$ largely
+collapses once sample splitting is turned on.
 
-\begin{table}[h]
+\input{tables/synthetic_vs_cart.tex}
+
+\paragraph{Real univariate data.}
+On real univariate benchmarks CART-style splitting is again the stronger default
+(Table~\ref{tab:real}).  CART wins \texttt{wine\_quality\_white} and
+\texttt{kin8nm} against the MMD family, and \texttt{diabetes} ($n=300$) is too
+noisy to separate the criteria.  The exception worth isolating is California
+housing, where the MMD family beats CART consistently (isotropic MMD improves
+CRPS by $\approx 0.003$ at a 100\% win rate, and adaptive MMD roughly doubles
+that).  That case confounds two explanations: the dataset is large, and housing
+prices may contain estimable heteroskedastic structure.  A subsample experiment
+over $n\in\{2000,4000,8000,16000\}$ separates these readings
+(Figure~\ref{fig:california}).  The paired MMD$-$CART advantage is already
+present at small $n$ and is sustained as $n$ grows, which favors the
+strong-distributional-structure reading over a pure estimability threshold.
+
+\input{tables/real_vs_cart.tex}
+
+\begin{figure}[h]
   \centering
-  \caption{Synthetic univariate summary.  Replace this placeholder with paired
-  mean differences, e.g. MMD minus CART, so negative CRPS/energy indicates an
-  MMD improvement.}
-  \begin{tabular}{lrrrr}
-    \toprule
-    dataset & honesty & $\Delta$RMSE & $\Delta$CRPS & $\Delta$energy \\
-    \midrule
-    paper\_quantile\_1 & 0.5 & TODO & TODO & TODO \\
-    paper\_quantile\_2 & 0.5 & TODO & TODO & TODO \\
-    paper\_quantile\_3 & 0.5 & TODO & TODO & TODO \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+  \includegraphics[width=0.62\textwidth]{figures/california_subsample_crps.png}
+  \caption{California housing subsample curve: paired CRPS difference (criterion
+  $-$ CART) versus $n_{\mathrm{train}}$.  Points below zero mean the criterion
+  beats CART.  The MMD family is below CART across the whole range rather than
+  only at large $n$.}
+  \label{fig:california}
+\end{figure}
 
-\paragraph{Adaptive and oracle checks.}
-Adaptive-frequency MMD was used as a rescue attempt: if uniform RFF averaging
-was hiding useful distributional signal, selecting the strongest coordinates at
-each split should expose it.  Oracle and adaptive runs did not change the main
-conclusion.  This points away from a simple tuning failure and toward the
-finite-sample allocation explanation.
+\paragraph{Do the MMD refinements help?}
+Table~\ref{tab:modification} references plain isotropic MMD rather than CART and
+asks whether any refinement is a better distributional baseline.  None is.
+Adaptive frequency selection helps on California but hurts on \texttt{kin8nm} and
+\texttt{wine}; sliced Wasserstein helps on \texttt{kin8nm} but loses elsewhere;
+on the multivariate cells the refinements scatter around zero relative to
+\texttt{mmd\_rff} with no consistent sign.  This is the evidence that ordinary
+RFF-MMD is already the right distributional default: the extra machinery does not
+move the frontier.  Adaptive-frequency MMD in particular was included as a rescue
+attempt---if uniform RFF averaging were hiding useful signal, per-split selection
+should expose it---and it does not change the conclusion, which points away from
+a simple tuning failure and toward the finite-sample allocation explanation.
 
-\paragraph{Real data.}
-On univariate tabular benchmarks, CART-style splitting was again the stronger
-default.  The exception worth isolating is California housing, where MMD can
-look competitive.  That case confounds two explanations: the dataset is large,
-and housing prices may contain estimable heteroskedastic structure.  A
-subsample experiment over $n\in\{2000,4000,8000,16000\}$ separates these
-readings.  If MMD improves only as $n$ grows, the evidence favors the
-estimability threshold story; if it improves already at small $n$, the evidence
-favors unusually strong distributional structure.
+\input{tables/modification_vs_mmd.tex}
 
-\begin{table}[h]
-  \centering
-  \caption{Real-data paired-seed summary.  Fill with means and standard errors
-  for CART and MMD, or paired MMD--CART differences.}
-  \begin{tabular}{lrrrrr}
-    \toprule
-    dataset & $n_{\mathrm{train}}$ & honesty & criterion & CRPS & fit time \\
-    \midrule
-    diabetes & TODO & 0.5 & CART & TODO & TODO \\
-    diabetes & TODO & 0.5 & MMD & TODO & TODO \\
-    california & TODO & 0.5 & CART & TODO & TODO \\
-    california & TODO & 0.5 & MMD & TODO & TODO \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\paragraph{Multivariate responses.}
+The regime that most naturally motivates distributional forests is multivariate
+response, and here distributional splitting clearly earns its keep
+(Table~\ref{tab:multivariate}).  On the building-energy real benchmark
+(\texttt{enb}, $d=2$) and on two synthetic multivariate mechanisms, the MMD
+family beats CART on the energy score with high win rates.  The cleanest case is
+\texttt{paper\_copula}, a pure-dependence shift with little marginal mean signal:
+every distributional criterion improves the energy score over CART by a wide
+margin at a 100\% win rate, while CRPS and RMSE---which see the marginals
+only---barely move.  This is exactly the structure CART cannot see and a
+distributional criterion can.
+
+\input{tables/multivariate_vs_cart.tex}
 
 \section{Characterization}
 
 The empirical pattern can be summarized as follows.
 
 \begin{quote}
-For univariate distributional forests, distributional splitting helps when
-non-location conditional structure is present and estimable at node scale.  In
-mean-dominated finite samples, CART-style splitting is the better default
-because it allocates split-selection power to the strongest signal.
+Distributional splitting helps when non-location conditional structure is present
+and estimable at node scale.  For scalar responses in mean-dominated finite
+samples, CART-style splitting is the better default; among distributional
+criteria, ordinary isotropic MMD is already close to best in class, and the
+anisotropic, adaptive, and sliced-Wasserstein refinements do not systematically
+improve on it.  For multivariate responses, where dependence structure is
+invisible to mean splitting, distributional criteria are the right tool.
 \end{quote}
 
 This statement is intentionally scoped.  It is not a claim that distributional
 forests are inferior to quantile regression forests, nor that MMD is a poor
 criterion in general.  The core motivation for DRF is multivariate response
 distributions, where CART/QRF-style univariate orderings are not a complete
-solution.  The claim here is about the common univariate tabular setting: when
-the target is scalar and the conditional law is mostly a shifted version of
-itself, a distributional split criterion is often paying variance to chase weak
-structure.
+solution, and the multivariate evidence above supports that motivation directly.
+The negative result is about the common univariate tabular setting: when the
+target is scalar and the conditional law is mostly a shifted version of itself, a
+distributional split criterion is often paying variance to chase weak structure.
 
 \section{Implications}
 
 For practice, the recommendation is simple.  Use CART-style splitting as the
-univariate default, then use distributional criteria as targeted tools for data
-sets with clear heteroskedasticity, tail behavior, or non-location structure.
-When distributional splitting is used, paired-seed comparisons and honesty
-settings should be reported: in these experiments, honesty can be as important
-as the criterion itself.
+univariate default, then reach for a distributional criterion---ordinary
+isotropic MMD, without further refinement---when the response is multivariate or
+the scalar data show clear heteroskedasticity, tail behavior, or non-location
+structure.  When distributional splitting is used, paired-seed comparisons and
+honesty settings should be reported: in these experiments, honesty can be as
+important as the criterion itself.  All of the above is implemented in the
+open-source \texttt{drforest} library, which provides the honest forest, every
+criterion compared here, and the post-hoc shrinkage variants behind one
+interface; its Rust-backed split search ran the full paired sweep in this note
+at a cost that makes such characterizations routine rather than a project in
+themselves.
 
 For research, the next useful theory is not a generic dominance theorem.  The
-useful object is a finite-sample comparison of split-score signal-to-noise:
-mean separation versus kernel mean separation under local alternatives.  Such a
+useful object is a finite-sample comparison of split-score signal-to-noise: mean
+separation versus kernel mean separation under local alternatives.  Such a
 calculation would turn the empirical characterization above into a sharp
 threshold statement.
 
 \section{Limitations}
 
-The experiments here are mostly univariate.  They do not exhaust the design
-space where DRF is most naturally motivated: multivariate responses, dependence
-structure, and conditional distributional changes with little or no mean shift.
-They also compare CART-style splitting to MMD splitting inside the same forest
-implementation; a full external QRF package comparison is a separate baseline.
+The scalar experiments compare CART-style splitting to MMD splitting inside the
+same forest implementation; a full external QRF package comparison is a separate
+baseline.  The multivariate evidence, while decisive on the energy score, uses a
+small number of mechanisms and one real benchmark, and a broader multivariate
+suite would strengthen the positive side of the characterization.
+
+\appendix
+\section{Shrinkage Frontier}
+
+Post-hoc shrinkage of forest weights is a separate lever from the split
+criterion.  Table~\ref{tab:shrinkage} pairs each shrinkage variant against raw
+weights within a fixed criterion and forest, so the difference isolates the
+shrinkage effect.  Shrinkage does not change the criterion ranking: marginal
+shrinkage is at best a small CRPS improvement on one synthetic mechanism, parent
+shrinkage runs to large intensity and consistently hurts, and the pattern is the
+same across CART, MMD, and sliced-Wasserstein forests.  Shrinkage is not the
+missing ingredient that would let the MMD variants dominate CART on scalar data.
+
+\input{tables/shrinkage_frontier.tex}
 
 \bibliographystyle{plainnat}
 \bibliography{main}

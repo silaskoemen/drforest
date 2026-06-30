@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Split {
     pub threshold: f64,
@@ -132,34 +134,58 @@ pub fn best_cart_split(
         return Ok(None);
     }
 
+    let candidates = features
+        .par_iter()
+        .enumerate()
+        .map(
+            |(feature_pos, &feature)| -> Result<Option<FeatureSplit>, SplitError> {
+                if feature >= n_cols {
+                    return Err(SplitError::InvalidFeature);
+                }
+                let mut feature_x = vec![0.0; n_rows];
+                for (row, slot) in feature_x.iter_mut().enumerate() {
+                    *slot = x[row * n_cols + feature];
+                }
+                let (lo, hi) = feature_bounds(bounds, feature_pos);
+                let split = best_cart_split_one_feature(
+                    &feature_x,
+                    y,
+                    dim,
+                    min_leaf,
+                    lo,
+                    hi,
+                    max_cutpoints,
+                )?;
+                Ok(split.map(|split| FeatureSplit {
+                    feature,
+                    threshold: split.threshold,
+                    score: split.score,
+                }))
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(reduce_feature_splits(candidates))
+}
+
+/// Per-feature threshold bounds, or unbounded when no bounds are supplied.
+fn feature_bounds(bounds: Option<&[f64]>, feature_pos: usize) -> (f64, f64) {
+    match bounds {
+        Some(values) => (values[2 * feature_pos], values[2 * feature_pos + 1]),
+        None => (f64::NEG_INFINITY, f64::INFINITY),
+    }
+}
+
+/// Combine per-feature candidate splits into the single best one, keeping the
+/// first feature (in `features` order) on score ties to match a sequential
+/// strictly-greater sweep. This makes the parallel search deterministic.
+fn reduce_feature_splits(candidates: Vec<Option<FeatureSplit>>) -> Option<FeatureSplit> {
     let mut best: Option<FeatureSplit> = None;
-    let mut feature_x = vec![0.0; n_rows];
-    for (feature_pos, &feature) in features.iter().enumerate() {
-        if feature >= n_cols {
-            return Err(SplitError::InvalidFeature);
-        }
-        for row in 0..n_rows {
-            feature_x[row] = x[row * n_cols + feature];
-        }
-        let (lo, hi) = match bounds {
-            Some(values) => (values[2 * feature_pos], values[2 * feature_pos + 1]),
-            None => (f64::NEG_INFINITY, f64::INFINITY),
-        };
-        let Some(split) =
-            best_cart_split_one_feature(&feature_x, y, dim, min_leaf, lo, hi, max_cutpoints)?
-        else {
-            continue;
-        };
-        let candidate = FeatureSplit {
-            feature,
-            threshold: split.threshold,
-            score: split.score,
-        };
+    for candidate in candidates.into_iter().flatten() {
         if best.is_none_or(|current| candidate.score > current.score) {
             best = Some(candidate);
         }
     }
-    Ok(best)
+    best
 }
 
 pub fn split_candidate_positions(
@@ -259,42 +285,38 @@ pub fn best_complex_embedding_split(
         return Ok(None);
     }
 
-    let mut best: Option<FeatureSplit> = None;
-    for (feature_pos, &feature) in features.iter().enumerate() {
-        if feature >= n_cols {
-            return Err(SplitError::InvalidFeature);
-        }
-        let (lo, hi) = match bounds {
-            Some(values) => (values[2 * feature_pos], values[2 * feature_pos + 1]),
-            None => (f64::NEG_INFINITY, f64::INFINITY),
-        };
-        let Some(split) = best_complex_embedding_split_one_feature(
-            x,
-            n_rows,
-            n_cols,
-            feature,
-            psi_re,
-            psi_im,
-            n_embed,
-            scale,
-            min_leaf,
-            lo,
-            hi,
-            max_cutpoints,
-        )?
-        else {
-            continue;
-        };
-        let candidate = FeatureSplit {
-            feature,
-            threshold: split.threshold,
-            score: split.score,
-        };
-        if best.is_none_or(|current| candidate.score > current.score) {
-            best = Some(candidate);
-        }
-    }
-    Ok(best)
+    let candidates = features
+        .par_iter()
+        .enumerate()
+        .map(
+            |(feature_pos, &feature)| -> Result<Option<FeatureSplit>, SplitError> {
+                if feature >= n_cols {
+                    return Err(SplitError::InvalidFeature);
+                }
+                let (lo, hi) = feature_bounds(bounds, feature_pos);
+                let split = best_complex_embedding_split_one_feature(
+                    x,
+                    n_rows,
+                    n_cols,
+                    feature,
+                    psi_re,
+                    psi_im,
+                    n_embed,
+                    scale,
+                    min_leaf,
+                    lo,
+                    hi,
+                    max_cutpoints,
+                )?;
+                Ok(split.map(|split| FeatureSplit {
+                    feature,
+                    threshold: split.threshold,
+                    score: split.score,
+                }))
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(reduce_feature_splits(candidates))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -438,42 +460,38 @@ pub fn best_adaptive_complex_embedding_split(
         return Ok(None);
     }
 
-    let mut best: Option<FeatureSplit> = None;
-    for (feature_pos, &feature) in features.iter().enumerate() {
-        if feature >= n_cols {
-            return Err(SplitError::InvalidFeature);
-        }
-        let (lo, hi) = match bounds {
-            Some(values) => (values[2 * feature_pos], values[2 * feature_pos + 1]),
-            None => (f64::NEG_INFINITY, f64::INFINITY),
-        };
-        let Some(split) = best_adaptive_complex_embedding_split_one_feature(
-            x,
-            n_rows,
-            n_cols,
-            feature,
-            psi_re,
-            psi_im,
-            n_embed,
-            selected_features,
-            min_leaf,
-            lo,
-            hi,
-            max_cutpoints,
-        )?
-        else {
-            continue;
-        };
-        let candidate = FeatureSplit {
-            feature,
-            threshold: split.threshold,
-            score: split.score,
-        };
-        if best.is_none_or(|current| candidate.score > current.score) {
-            best = Some(candidate);
-        }
-    }
-    Ok(best)
+    let candidates = features
+        .par_iter()
+        .enumerate()
+        .map(
+            |(feature_pos, &feature)| -> Result<Option<FeatureSplit>, SplitError> {
+                if feature >= n_cols {
+                    return Err(SplitError::InvalidFeature);
+                }
+                let (lo, hi) = feature_bounds(bounds, feature_pos);
+                let split = best_adaptive_complex_embedding_split_one_feature(
+                    x,
+                    n_rows,
+                    n_cols,
+                    feature,
+                    psi_re,
+                    psi_im,
+                    n_embed,
+                    selected_features,
+                    min_leaf,
+                    lo,
+                    hi,
+                    max_cutpoints,
+                )?;
+                Ok(split.map(|split| FeatureSplit {
+                    feature,
+                    threshold: split.threshold,
+                    score: split.score,
+                }))
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(reduce_feature_splits(candidates))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -620,40 +638,36 @@ pub fn best_sliced_wasserstein_split(
         return Ok(None);
     }
 
-    let mut best: Option<FeatureSplit> = None;
-    for (feature_pos, &feature) in features.iter().enumerate() {
-        if feature >= n_cols {
-            return Err(SplitError::InvalidFeature);
-        }
-        let (lo, hi) = match bounds {
-            Some(values) => (values[2 * feature_pos], values[2 * feature_pos + 1]),
-            None => (f64::NEG_INFINITY, f64::INFINITY),
-        };
-        let Some(split) = best_sliced_wasserstein_split_one_feature(
-            x,
-            n_rows,
-            n_cols,
-            feature,
-            projected,
-            n_projections,
-            min_leaf,
-            lo,
-            hi,
-            max_cutpoints,
-        )?
-        else {
-            continue;
-        };
-        let candidate = FeatureSplit {
-            feature,
-            threshold: split.threshold,
-            score: split.score,
-        };
-        if best.is_none_or(|current| candidate.score > current.score) {
-            best = Some(candidate);
-        }
-    }
-    Ok(best)
+    let candidates = features
+        .par_iter()
+        .enumerate()
+        .map(
+            |(feature_pos, &feature)| -> Result<Option<FeatureSplit>, SplitError> {
+                if feature >= n_cols {
+                    return Err(SplitError::InvalidFeature);
+                }
+                let (lo, hi) = feature_bounds(bounds, feature_pos);
+                let split = best_sliced_wasserstein_split_one_feature(
+                    x,
+                    n_rows,
+                    n_cols,
+                    feature,
+                    projected,
+                    n_projections,
+                    min_leaf,
+                    lo,
+                    hi,
+                    max_cutpoints,
+                )?;
+                Ok(split.map(|split| FeatureSplit {
+                    feature,
+                    threshold: split.threshold,
+                    score: split.score,
+                }))
+            },
+        )
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(reduce_feature_splits(candidates))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -708,6 +722,27 @@ pub fn best_sliced_wasserstein_split_one_feature(
         z[dst..(dst + n_projections)].copy_from_slice(&projected[src..(src + n_projections)]);
     }
 
+    // Sort each projection by value once, keeping each value's feature rank.
+    // A candidate split puts feature ranks `0..n_left` on the left, so a single
+    // value-ordered pass per cutpoint partitions both sides while preserving the
+    // sort -- no re-sort per cutpoint. `sorted_*` are laid out projection-major
+    // for contiguous reads during the sweep.
+    let mut sorted_value = vec![0.0; n_rows * n_projections];
+    let mut sorted_rank = vec![0usize; n_rows * n_projections];
+    let mut perm: Vec<usize> = Vec::with_capacity(n_rows);
+    for projection in 0..n_projections {
+        perm.clear();
+        perm.extend(0..n_rows);
+        perm.sort_unstable_by(|&a, &b| {
+            z[a * n_projections + projection].total_cmp(&z[b * n_projections + projection])
+        });
+        let base = projection * n_rows;
+        for (slot, &rank) in perm.iter().enumerate() {
+            sorted_value[base + slot] = z[rank * n_projections + projection];
+            sorted_rank[base + slot] = rank;
+        }
+    }
+
     let mut left = Vec::with_capacity(n_rows);
     let mut right = Vec::with_capacity(n_rows);
     let mut best: Option<Split> = None;
@@ -718,14 +753,15 @@ pub fn best_sliced_wasserstein_split_one_feature(
         for projection in 0..n_projections {
             left.clear();
             right.clear();
-            for row in 0..n_left {
-                left.push(z[row * n_projections + projection]);
+            let base = projection * n_rows;
+            for offset in 0..n_rows {
+                let value = sorted_value[base + offset];
+                if sorted_rank[base + offset] < n_left {
+                    left.push(value);
+                } else {
+                    right.push(value);
+                }
             }
-            for row in n_left..n_rows {
-                right.push(z[row * n_projections + projection]);
-            }
-            left.sort_unstable_by(|a, b| a.total_cmp(b));
-            right.sort_unstable_by(|a, b| a.total_cmp(b));
             sw_sum += wasserstein_1d_sq_sorted(&left, &right);
         }
         let sw_sq = sw_sum / n_projections as f64;

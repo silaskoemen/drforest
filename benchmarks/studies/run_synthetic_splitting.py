@@ -246,7 +246,7 @@ def main() -> None:
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS))
     parser.add_argument("--criteria", nargs="+", default=list(DEFAULT_CRITERIA))
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--repeats", type=int, default=5)
+    parser.add_argument("--repeats", type=int, default=10)
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200)
     parser.add_argument("--honesty-fractions", nargs="+", type=float, default=[0.5])

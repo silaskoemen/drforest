@@ -1,0 +1,49 @@
+\begin{table}[h]
+  \centering
+  \caption{Shrinkage frontier: paired differences (variant $-$ \texttt{raw}) within a fixed criterion and forest. Negative means shrinkage improves over raw weights; $\bar\alpha$ is the mean shrinkage intensity.}
+  \label{tab:shrinkage}
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tabular}{lcccccccc}
+    \toprule
+    dataset & criterion & honesty & variant & pairs & $\bar\alpha$ & $\Delta$RMSE & $\Delta$CRPS & $\Delta$energy \\
+    \midrule
+    enb & cart & 0.5 & marginal\_kmse & 5 & 0.003 & -0.0001 $\pm$ 0.0008 (40\%) & +0.0009 $\pm$ 0.0001 (0\%) & +0.0012 $\pm$ 0.0002 (0\%) \\
+    enb & cart & 0.5 & marginal\_stein & 5 & 0.003 & -0.0001 $\pm$ 0.0008 (40\%) & +0.0009 $\pm$ 0.0001 (0\%) & +0.0012 $\pm$ 0.0002 (0\%) \\
+    enb & cart & 0.5 & parent\_kmse & 5 & 0.282 & +0.0472 $\pm$ 0.0053 (0\%) & +0.0351 $\pm$ 0.0017 (0\%) & +0.0509 $\pm$ 0.0022 (0\%) \\
+    enb & cart & 0.5 & parent\_stein & 5 & 0.402 & +0.0612 $\pm$ 0.0084 (0\%) & +0.0494 $\pm$ 0.0029 (0\%) & +0.0719 $\pm$ 0.0039 (0\%) \\
+    enb & mmd\_rff & 0.5 & marginal\_kmse & 5 & 0.003 & -0.0001 $\pm$ 0.0008 (40\%) & +0.0009 $\pm$ 0.0001 (0\%) & +0.0013 $\pm$ 0.0002 (0\%) \\
+    enb & mmd\_rff & 0.5 & marginal\_stein & 5 & 0.003 & -0.0001 $\pm$ 0.0008 (40\%) & +0.0009 $\pm$ 0.0001 (0\%) & +0.0013 $\pm$ 0.0002 (0\%) \\
+    enb & mmd\_rff & 0.5 & parent\_kmse & 5 & 0.286 & +0.0487 $\pm$ 0.0044 (0\%) & +0.0361 $\pm$ 0.0013 (0\%) & +0.0522 $\pm$ 0.0016 (0\%) \\
+    enb & mmd\_rff & 0.5 & parent\_stein & 5 & 0.408 & +0.0623 $\pm$ 0.0070 (0\%) & +0.0507 $\pm$ 0.0023 (0\%) & +0.0735 $\pm$ 0.0030 (0\%) \\
+    enb & sliced\_wasserstein & 0.5 & marginal\_kmse & 5 & 0.003 & -0.0001 $\pm$ 0.0008 (40\%) & +0.0009 $\pm$ 0.0001 (0\%) & +0.0012 $\pm$ 0.0002 (0\%) \\
+    enb & sliced\_wasserstein & 0.5 & marginal\_stein & 5 & 0.003 & -0.0002 $\pm$ 0.0008 (40\%) & +0.0009 $\pm$ 0.0001 (0\%) & +0.0012 $\pm$ 0.0002 (0\%) \\
+    enb & sliced\_wasserstein & 0.5 & parent\_kmse & 5 & 0.275 & +0.0495 $\pm$ 0.0052 (0\%) & +0.0360 $\pm$ 0.0015 (0\%) & +0.0520 $\pm$ 0.0019 (0\%) \\
+    enb & sliced\_wasserstein & 0.5 & parent\_stein & 5 & 0.396 & +0.0644 $\pm$ 0.0081 (0\%) & +0.0510 $\pm$ 0.0027 (0\%) & +0.0740 $\pm$ 0.0035 (0\%) \\
+    paper\_quantile\_2 & cart & 0.5 & marginal\_kmse & 5 & 0.316 & -0.0007 $\pm$ 0.0002 (100\%) & +0.0018 $\pm$ 0.0003 (0\%) & +0.0018 $\pm$ 0.0003 (0\%) \\
+    paper\_quantile\_2 & cart & 0.5 & marginal\_stein & 5 & 0.460 & -0.0010 $\pm$ 0.0003 (100\%) & +0.0026 $\pm$ 0.0005 (0\%) & +0.0026 $\pm$ 0.0005 (0\%) \\
+    paper\_quantile\_2 & cart & 0.5 & parent\_kmse & 5 & 0.839 & -0.0004 $\pm$ 0.0003 (80\%) & +0.0009 $\pm$ 0.0002 (0\%) & +0.0009 $\pm$ 0.0002 (0\%) \\
+    paper\_quantile\_2 & cart & 0.5 & parent\_stein & 5 & 1.000 & -0.0004 $\pm$ 0.0004 (80\%) & +0.0013 $\pm$ 0.0003 (0\%) & +0.0013 $\pm$ 0.0003 (0\%) \\
+    paper\_quantile\_2 & mmd\_rff & 0.5 & marginal\_kmse & 5 & 0.059 & -0.0001 $\pm$ 0.0001 (80\%) & +0.0002 $\pm$ 0.0001 (20\%) & +0.0002 $\pm$ 0.0001 (20\%) \\
+    paper\_quantile\_2 & mmd\_rff & 0.5 & marginal\_stein & 5 & 0.066 & -0.0002 $\pm$ 0.0001 (80\%) & +0.0002 $\pm$ 0.0002 (40\%) & +0.0002 $\pm$ 0.0002 (40\%) \\
+    paper\_quantile\_2 & mmd\_rff & 0.5 & parent\_kmse & 5 & 0.903 & -0.0002 $\pm$ 0.0005 (60\%) & -0.0001 $\pm$ 0.0003 (60\%) & -0.0001 $\pm$ 0.0003 (60\%) \\
+    paper\_quantile\_2 & mmd\_rff & 0.5 & parent\_stein & 5 & 1.000 & -0.0003 $\pm$ 0.0005 (60\%) & -0.0002 $\pm$ 0.0003 (60\%) & -0.0002 $\pm$ 0.0003 (60\%) \\
+    paper\_quantile\_2 & sliced\_wasserstein & 0.5 & marginal\_kmse & 5 & 0.057 & -0.0002 $\pm$ 0.0001 (80\%) & +0.0002 $\pm$ 0.0001 (20\%) & +0.0002 $\pm$ 0.0001 (20\%) \\
+    paper\_quantile\_2 & sliced\_wasserstein & 0.5 & marginal\_stein & 5 & 0.064 & -0.0001 $\pm$ 0.0000 (80\%) & +0.0002 $\pm$ 0.0002 (20\%) & +0.0002 $\pm$ 0.0002 (20\%) \\
+    paper\_quantile\_2 & sliced\_wasserstein & 0.5 & parent\_kmse & 5 & 0.904 & -0.0000 $\pm$ 0.0003 (60\%) & +0.0001 $\pm$ 0.0002 (40\%) & +0.0001 $\pm$ 0.0002 (40\%) \\
+    paper\_quantile\_2 & sliced\_wasserstein & 0.5 & parent\_stein & 5 & 1.000 & -0.0000 $\pm$ 0.0004 (60\%) & +0.0001 $\pm$ 0.0003 (40\%) & +0.0001 $\pm$ 0.0003 (40\%) \\
+    shrinkage\_toy & cart & 0.5 & marginal\_kmse & 5 & 0.040 & +0.0076 $\pm$ 0.0018 (0\%) & +0.0038 $\pm$ 0.0007 (0\%) & +0.0061 $\pm$ 0.0011 (0\%) \\
+    shrinkage\_toy & cart & 0.5 & marginal\_stein & 5 & 0.042 & +0.0081 $\pm$ 0.0020 (0\%) & +0.0040 $\pm$ 0.0007 (0\%) & +0.0064 $\pm$ 0.0012 (0\%) \\
+    shrinkage\_toy & cart & 0.5 & parent\_kmse & 5 & 0.379 & +0.0137 $\pm$ 0.0036 (0\%) & +0.0072 $\pm$ 0.0014 (0\%) & +0.0135 $\pm$ 0.0023 (0\%) \\
+    shrinkage\_toy & cart & 0.5 & parent\_stein & 5 & 0.586 & +0.0229 $\pm$ 0.0053 (0\%) & +0.0119 $\pm$ 0.0023 (0\%) & +0.0223 $\pm$ 0.0036 (0\%) \\
+    shrinkage\_toy & mmd\_rff & 0.5 & marginal\_kmse & 5 & 0.039 & +0.0075 $\pm$ 0.0019 (0\%) & +0.0037 $\pm$ 0.0007 (0\%) & +0.0060 $\pm$ 0.0011 (0\%) \\
+    shrinkage\_toy & mmd\_rff & 0.5 & marginal\_stein & 5 & 0.041 & +0.0079 $\pm$ 0.0020 (0\%) & +0.0039 $\pm$ 0.0007 (0\%) & +0.0063 $\pm$ 0.0012 (0\%) \\
+    shrinkage\_toy & mmd\_rff & 0.5 & parent\_kmse & 5 & 0.376 & +0.0131 $\pm$ 0.0036 (0\%) & +0.0068 $\pm$ 0.0015 (0\%) & +0.0129 $\pm$ 0.0024 (0\%) \\
+    shrinkage\_toy & mmd\_rff & 0.5 & parent\_stein & 5 & 0.578 & +0.0216 $\pm$ 0.0054 (0\%) & +0.0112 $\pm$ 0.0024 (0\%) & +0.0211 $\pm$ 0.0037 (0\%) \\
+    shrinkage\_toy & sliced\_wasserstein & 0.5 & marginal\_kmse & 5 & 0.039 & +0.0076 $\pm$ 0.0019 (0\%) & +0.0038 $\pm$ 0.0007 (0\%) & +0.0061 $\pm$ 0.0011 (0\%) \\
+    shrinkage\_toy & sliced\_wasserstein & 0.5 & marginal\_stein & 5 & 0.042 & +0.0081 $\pm$ 0.0020 (0\%) & +0.0040 $\pm$ 0.0007 (0\%) & +0.0065 $\pm$ 0.0012 (0\%) \\
+    shrinkage\_toy & sliced\_wasserstein & 0.5 & parent\_kmse & 5 & 0.383 & +0.0131 $\pm$ 0.0034 (0\%) & +0.0068 $\pm$ 0.0013 (0\%) & +0.0130 $\pm$ 0.0021 (0\%) \\
+    shrinkage\_toy & sliced\_wasserstein & 0.5 & parent\_stein & 5 & 0.591 & +0.0220 $\pm$ 0.0051 (0\%) & +0.0114 $\pm$ 0.0022 (0\%) & +0.0216 $\pm$ 0.0034 (0\%) \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}

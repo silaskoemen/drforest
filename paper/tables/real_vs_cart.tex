@@ -1,0 +1,37 @@
+\begin{table}[h]
+  \centering
+  \caption{Paired differences (criterion $-$ \texttt{cart}). Negative means the row improves over the reference; values are mean $\pm$ paired SE with seed-level win rate.}
+  \label{tab:real}
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tabular}{lccccccc}
+    \toprule
+    dataset & $n_{\mathrm{tr}}$ & honesty & criterion & pairs & $\Delta$RMSE & $\Delta$CRPS & $\Delta$energy \\
+    \midrule
+    california\_housing & 3000 & 0 & adaptive\_mmd & 10 & -0.0051 $\pm$ 0.0019 (80\%) & -0.0053 $\pm$ 0.0008 (100\%) & -0.0053 $\pm$ 0.0008 (100\%) \\
+    california\_housing & 3000 & 0 & mmd\_rff & 10 & -0.0032 $\pm$ 0.0006 (90\%) & -0.0026 $\pm$ 0.0003 (100\%) & -0.0026 $\pm$ 0.0003 (100\%) \\
+    california\_housing & 3000 & 0 & sliced\_wasserstein & 10 & -0.0005 $\pm$ 0.0008 (70\%) & -0.0008 $\pm$ 0.0004 (80\%) & -0.0008 $\pm$ 0.0004 (80\%) \\
+    california\_housing & 3000 & 0.5 & adaptive\_mmd & 10 & -0.0075 $\pm$ 0.0014 (90\%) & -0.0055 $\pm$ 0.0007 (100\%) & -0.0055 $\pm$ 0.0007 (100\%) \\
+    california\_housing & 3000 & 0.5 & mmd\_rff & 10 & -0.0045 $\pm$ 0.0006 (100\%) & -0.0029 $\pm$ 0.0003 (100\%) & -0.0029 $\pm$ 0.0003 (100\%) \\
+    california\_housing & 3000 & 0.5 & sliced\_wasserstein & 10 & -0.0017 $\pm$ 0.0006 (80\%) & -0.0010 $\pm$ 0.0003 (80\%) & -0.0010 $\pm$ 0.0003 (80\%) \\
+    diabetes & 300 & 0 & adaptive\_mmd & 10 & +0.1814 $\pm$ 0.1581 (50\%) & +0.2474 $\pm$ 0.0867 (20\%) & +0.2474 $\pm$ 0.0867 (20\%) \\
+    diabetes & 300 & 0 & mmd\_rff & 10 & +0.0565 $\pm$ 0.0947 (50\%) & +0.1077 $\pm$ 0.0572 (30\%) & +0.1077 $\pm$ 0.0572 (30\%) \\
+    diabetes & 300 & 0 & sliced\_wasserstein & 10 & +0.0831 $\pm$ 0.1027 (50\%) & +0.0811 $\pm$ 0.0684 (30\%) & +0.0811 $\pm$ 0.0684 (30\%) \\
+    diabetes & 300 & 0.5 & adaptive\_mmd & 10 & +0.1425 $\pm$ 0.0994 (30\%) & +0.1065 $\pm$ 0.0549 (30\%) & +0.1065 $\pm$ 0.0549 (30\%) \\
+    diabetes & 300 & 0.5 & mmd\_rff & 10 & +0.0222 $\pm$ 0.0595 (50\%) & +0.0176 $\pm$ 0.0363 (50\%) & +0.0176 $\pm$ 0.0363 (50\%) \\
+    diabetes & 300 & 0.5 & sliced\_wasserstein & 10 & +0.0401 $\pm$ 0.0655 (40\%) & +0.0220 $\pm$ 0.0368 (50\%) & +0.0220 $\pm$ 0.0368 (50\%) \\
+    kin8nm & 3000 & 0 & adaptive\_mmd & 10 & +0.0069 $\pm$ 0.0003 (0\%) & +0.0031 $\pm$ 0.0001 (0\%) & +0.0031 $\pm$ 0.0001 (0\%) \\
+    kin8nm & 3000 & 0 & mmd\_rff & 10 & +0.0014 $\pm$ 0.0002 (10\%) & +0.0005 $\pm$ 0.0001 (10\%) & +0.0005 $\pm$ 0.0001 (10\%) \\
+    kin8nm & 3000 & 0 & sliced\_wasserstein & 10 & -0.0016 $\pm$ 0.0002 (100\%) & -0.0008 $\pm$ 0.0001 (100\%) & -0.0008 $\pm$ 0.0001 (100\%) \\
+    kin8nm & 3000 & 0.5 & adaptive\_mmd & 10 & +0.0035 $\pm$ 0.0003 (0\%) & +0.0014 $\pm$ 0.0001 (0\%) & +0.0014 $\pm$ 0.0001 (0\%) \\
+    kin8nm & 3000 & 0.5 & mmd\_rff & 10 & +0.0007 $\pm$ 0.0001 (0\%) & +0.0001 $\pm$ 0.0001 (40\%) & +0.0001 $\pm$ 0.0001 (40\%) \\
+    kin8nm & 3000 & 0.5 & sliced\_wasserstein & 10 & -0.0006 $\pm$ 0.0001 (100\%) & -0.0004 $\pm$ 0.0000 (100\%) & -0.0004 $\pm$ 0.0000 (100\%) \\
+    wine\_quality\_white & 3000 & 0 & adaptive\_mmd & 10 & +0.0191 $\pm$ 0.0015 (0\%) & +0.0075 $\pm$ 0.0009 (0\%) & +0.0075 $\pm$ 0.0009 (0\%) \\
+    wine\_quality\_white & 3000 & 0 & mmd\_rff & 10 & +0.0068 $\pm$ 0.0009 (0\%) & +0.0021 $\pm$ 0.0005 (10\%) & +0.0021 $\pm$ 0.0005 (10\%) \\
+    wine\_quality\_white & 3000 & 0 & sliced\_wasserstein & 10 & +0.0072 $\pm$ 0.0010 (0\%) & +0.0024 $\pm$ 0.0005 (10\%) & +0.0024 $\pm$ 0.0005 (10\%) \\
+    wine\_quality\_white & 3000 & 0.5 & adaptive\_mmd & 10 & +0.0073 $\pm$ 0.0009 (0\%) & +0.0035 $\pm$ 0.0005 (0\%) & +0.0035 $\pm$ 0.0005 (0\%) \\
+    wine\_quality\_white & 3000 & 0.5 & mmd\_rff & 10 & +0.0026 $\pm$ 0.0005 (0\%) & +0.0011 $\pm$ 0.0002 (10\%) & +0.0011 $\pm$ 0.0002 (10\%) \\
+    wine\_quality\_white & 3000 & 0.5 & sliced\_wasserstein & 10 & +0.0043 $\pm$ 0.0006 (0\%) & +0.0023 $\pm$ 0.0003 (0\%) & +0.0023 $\pm$ 0.0003 (0\%) \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}

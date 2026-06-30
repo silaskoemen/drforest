@@ -1,0 +1,45 @@
+\begin{table}[h]
+  \centering
+  \caption{Absolute metric means ($\pm$ std over seeds); lower is better.}
+  \label{tab:real_absolute}
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tabular}{lccccccc}
+    \toprule
+    dataset & $n_{\mathrm{tr}}$ & honesty & criterion & RMSE & CRPS & energy & fit (s) \\
+    \midrule
+    california\_housing & 3000 & 0 & adaptive\_mmd & 0.5806 $\pm$ 0.0235 & 0.2745 $\pm$ 0.0088 & 0.2745 $\pm$ 0.0088 & 225.66 \\
+    california\_housing & 3000 & 0 & cart & 0.5858 $\pm$ 0.0220 & 0.2799 $\pm$ 0.0086 & 0.2799 $\pm$ 0.0086 & 18.03 \\
+    california\_housing & 3000 & 0 & mmd\_rff & 0.5826 $\pm$ 0.0231 & 0.2773 $\pm$ 0.0089 & 0.2773 $\pm$ 0.0089 & 90.09 \\
+    california\_housing & 3000 & 0 & sliced\_wasserstein & 0.5852 $\pm$ 0.0220 & 0.2791 $\pm$ 0.0088 & 0.2791 $\pm$ 0.0088 & 164.00 \\
+    california\_housing & 3000 & 0.5 & adaptive\_mmd & 0.6289 $\pm$ 0.0237 & 0.3087 $\pm$ 0.0091 & 0.3087 $\pm$ 0.0091 & 97.55 \\
+    california\_housing & 3000 & 0.5 & cart & 0.6364 $\pm$ 0.0234 & 0.3142 $\pm$ 0.0093 & 0.3142 $\pm$ 0.0093 & 7.80 \\
+    california\_housing & 3000 & 0.5 & mmd\_rff & 0.6320 $\pm$ 0.0234 & 0.3113 $\pm$ 0.0090 & 0.3113 $\pm$ 0.0090 & 35.82 \\
+    california\_housing & 3000 & 0.5 & sliced\_wasserstein & 0.6347 $\pm$ 0.0227 & 0.3132 $\pm$ 0.0092 & 0.3132 $\pm$ 0.0092 & 61.44 \\
+    diabetes & 300 & 0 & adaptive\_mmd & 56.3173 $\pm$ 2.9812 & 31.8439 $\pm$ 1.5759 & 31.8439 $\pm$ 1.5759 & 9.41 \\
+    diabetes & 300 & 0 & cart & 56.1359 $\pm$ 2.8261 & 31.5965 $\pm$ 1.5928 & 31.5965 $\pm$ 1.5928 & 2.53 \\
+    diabetes & 300 & 0 & mmd\_rff & 56.1924 $\pm$ 2.8893 & 31.7042 $\pm$ 1.5809 & 31.7042 $\pm$ 1.5809 & 5.58 \\
+    diabetes & 300 & 0 & sliced\_wasserstein & 56.2190 $\pm$ 2.8179 & 31.6776 $\pm$ 1.5369 & 31.6776 $\pm$ 1.5369 & 2.62 \\
+    diabetes & 300 & 0.5 & adaptive\_mmd & 58.2074 $\pm$ 3.7883 & 32.7182 $\pm$ 1.8465 & 32.7182 $\pm$ 1.8465 & 3.81 \\
+    diabetes & 300 & 0.5 & cart & 58.0649 $\pm$ 3.5850 & 32.6116 $\pm$ 1.7678 & 32.6116 $\pm$ 1.7678 & 1.03 \\
+    diabetes & 300 & 0.5 & mmd\_rff & 58.0871 $\pm$ 3.6759 & 32.6292 $\pm$ 1.8086 & 32.6292 $\pm$ 1.8086 & 2.18 \\
+    diabetes & 300 & 0.5 & sliced\_wasserstein & 58.1049 $\pm$ 3.6987 & 32.6337 $\pm$ 1.8081 & 32.6337 $\pm$ 1.8081 & 1.08 \\
+    kin8nm & 3000 & 0 & adaptive\_mmd & 0.1702 $\pm$ 0.0030 & 0.0923 $\pm$ 0.0018 & 0.0923 $\pm$ 0.0018 & 231.15 \\
+    kin8nm & 3000 & 0 & cart & 0.1632 $\pm$ 0.0026 & 0.0892 $\pm$ 0.0015 & 0.0892 $\pm$ 0.0015 & 17.61 \\
+    kin8nm & 3000 & 0 & mmd\_rff & 0.1646 $\pm$ 0.0029 & 0.0897 $\pm$ 0.0017 & 0.0897 $\pm$ 0.0017 & 89.84 \\
+    kin8nm & 3000 & 0 & sliced\_wasserstein & 0.1616 $\pm$ 0.0023 & 0.0884 $\pm$ 0.0014 & 0.0884 $\pm$ 0.0014 & 178.20 \\
+    kin8nm & 3000 & 0.5 & adaptive\_mmd & 0.1899 $\pm$ 0.0036 & 0.1040 $\pm$ 0.0019 & 0.1040 $\pm$ 0.0019 & 100.79 \\
+    kin8nm & 3000 & 0.5 & cart & 0.1864 $\pm$ 0.0036 & 0.1025 $\pm$ 0.0019 & 0.1025 $\pm$ 0.0019 & 7.72 \\
+    kin8nm & 3000 & 0.5 & mmd\_rff & 0.1871 $\pm$ 0.0034 & 0.1026 $\pm$ 0.0018 & 0.1026 $\pm$ 0.0018 & 35.36 \\
+    kin8nm & 3000 & 0.5 & sliced\_wasserstein & 0.1858 $\pm$ 0.0035 & 0.1021 $\pm$ 0.0018 & 0.1021 $\pm$ 0.0018 & 65.82 \\
+    wine\_quality\_white & 3000 & 0 & adaptive\_mmd & 0.6758 $\pm$ 0.0185 & 0.3197 $\pm$ 0.0110 & 0.3197 $\pm$ 0.0110 & 226.92 \\
+    wine\_quality\_white & 3000 & 0 & cart & 0.6568 $\pm$ 0.0180 & 0.3123 $\pm$ 0.0104 & 0.3123 $\pm$ 0.0104 & 22.01 \\
+    wine\_quality\_white & 3000 & 0 & mmd\_rff & 0.6636 $\pm$ 0.0185 & 0.3144 $\pm$ 0.0108 & 0.3144 $\pm$ 0.0108 & 96.18 \\
+    wine\_quality\_white & 3000 & 0 & sliced\_wasserstein & 0.6640 $\pm$ 0.0173 & 0.3146 $\pm$ 0.0100 & 0.3146 $\pm$ 0.0100 & 59.54 \\
+    wine\_quality\_white & 3000 & 0.5 & adaptive\_mmd & 0.7144 $\pm$ 0.0166 & 0.3538 $\pm$ 0.0102 & 0.3538 $\pm$ 0.0102 & 100.91 \\
+    wine\_quality\_white & 3000 & 0.5 & cart & 0.7071 $\pm$ 0.0174 & 0.3502 $\pm$ 0.0104 & 0.3502 $\pm$ 0.0104 & 8.88 \\
+    wine\_quality\_white & 3000 & 0.5 & mmd\_rff & 0.7097 $\pm$ 0.0170 & 0.3514 $\pm$ 0.0103 & 0.3514 $\pm$ 0.0103 & 40.91 \\
+    wine\_quality\_white & 3000 & 0.5 & sliced\_wasserstein & 0.7114 $\pm$ 0.0169 & 0.3525 $\pm$ 0.0102 & 0.3525 $\pm$ 0.0102 & 24.22 \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}

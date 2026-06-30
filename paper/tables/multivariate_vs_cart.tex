@@ -1,0 +1,37 @@
+\begin{table}[h]
+  \centering
+  \caption{Paired differences (criterion $-$ \texttt{cart}). Negative means the row improves over the reference; values are mean $\pm$ paired SE with seed-level win rate.}
+  \label{tab:multivariate}
+  \begin{adjustbox}{max width=\textwidth}
+  \begin{tabular}{lccccccc}
+    \toprule
+    dataset & $n_{\mathrm{tr}}$ & honesty & criterion & pairs & $\Delta$energy & $\Delta$CRPS & $\Delta$RMSE \\
+    \midrule
+    enb & 576 & 0 & adaptive\_mmd & 5 & -0.0047 $\pm$ 0.0026 (100\%) & -0.0033 $\pm$ 0.0018 (100\%) & -0.0062 $\pm$ 0.0038 (80\%) \\
+    enb & 576 & 0 & anisotropic\_mmd & 5 & -0.0037 $\pm$ 0.0024 (80\%) & -0.0026 $\pm$ 0.0017 (80\%) & -0.0048 $\pm$ 0.0041 (80\%) \\
+    enb & 576 & 0 & mmd\_rff & 5 & -0.0024 $\pm$ 0.0017 (80\%) & -0.0017 $\pm$ 0.0011 (80\%) & -0.0027 $\pm$ 0.0027 (60\%) \\
+    enb & 576 & 0 & sliced\_wasserstein & 5 & +0.0015 $\pm$ 0.0022 (40\%) & +0.0012 $\pm$ 0.0016 (40\%) & +0.0063 $\pm$ 0.0040 (20\%) \\
+    enb & 576 & 0.5 & adaptive\_mmd & 5 & -0.0072 $\pm$ 0.0031 (100\%) & -0.0052 $\pm$ 0.0022 (100\%) & -0.0135 $\pm$ 0.0067 (100\%) \\
+    enb & 576 & 0.5 & anisotropic\_mmd & 5 & -0.0041 $\pm$ 0.0019 (80\%) & -0.0028 $\pm$ 0.0014 (80\%) & -0.0078 $\pm$ 0.0047 (80\%) \\
+    enb & 576 & 0.5 & mmd\_rff & 5 & -0.0036 $\pm$ 0.0017 (100\%) & -0.0027 $\pm$ 0.0013 (100\%) & -0.0071 $\pm$ 0.0037 (80\%) \\
+    enb & 576 & 0.5 & sliced\_wasserstein & 5 & +0.0022 $\pm$ 0.0027 (40\%) & +0.0020 $\pm$ 0.0020 (20\%) & +0.0018 $\pm$ 0.0058 (60\%) \\
+    paper\_copula & 3750 & 0 & adaptive\_mmd & 5 & -0.0054 $\pm$ 0.0010 (100\%) & -0.0007 $\pm$ 0.0004 (80\%) & -0.0016 $\pm$ 0.0008 (100\%) \\
+    paper\_copula & 3750 & 0 & anisotropic\_mmd & 5 & -0.0050 $\pm$ 0.0014 (100\%) & -0.0002 $\pm$ 0.0006 (60\%) & -0.0018 $\pm$ 0.0011 (60\%) \\
+    paper\_copula & 3750 & 0 & mmd\_rff & 5 & -0.0045 $\pm$ 0.0007 (100\%) & -0.0004 $\pm$ 0.0003 (60\%) & -0.0009 $\pm$ 0.0005 (60\%) \\
+    paper\_copula & 3750 & 0 & sliced\_wasserstein & 5 & -0.0047 $\pm$ 0.0010 (100\%) & -0.0002 $\pm$ 0.0004 (80\%) & -0.0006 $\pm$ 0.0006 (80\%) \\
+    paper\_copula & 3750 & 0.5 & adaptive\_mmd & 5 & -0.0040 $\pm$ 0.0004 (100\%) & +0.0001 $\pm$ 0.0001 (20\%) & +0.0001 $\pm$ 0.0003 (60\%) \\
+    paper\_copula & 3750 & 0.5 & anisotropic\_mmd & 5 & -0.0043 $\pm$ 0.0002 (100\%) & +0.0004 $\pm$ 0.0002 (20\%) & +0.0004 $\pm$ 0.0003 (20\%) \\
+    paper\_copula & 3750 & 0.5 & mmd\_rff & 5 & -0.0038 $\pm$ 0.0003 (100\%) & +0.0001 $\pm$ 0.0001 (40\%) & +0.0002 $\pm$ 0.0003 (40\%) \\
+    paper\_copula & 3750 & 0.5 & sliced\_wasserstein & 5 & -0.0046 $\pm$ 0.0002 (100\%) & +0.0001 $\pm$ 0.0001 (20\%) & +0.0000 $\pm$ 0.0001 (60\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0 & adaptive\_mmd & 5 & -0.0009 $\pm$ 0.0012 (80\%) & -0.0006 $\pm$ 0.0008 (80\%) & +0.0004 $\pm$ 0.0022 (40\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0 & anisotropic\_mmd & 5 & -0.0002 $\pm$ 0.0010 (40\%) & -0.0001 $\pm$ 0.0006 (40\%) & +0.0008 $\pm$ 0.0020 (40\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0 & mmd\_rff & 5 & -0.0010 $\pm$ 0.0012 (80\%) & -0.0006 $\pm$ 0.0008 (80\%) & +0.0012 $\pm$ 0.0018 (40\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0 & sliced\_wasserstein & 5 & -0.0017 $\pm$ 0.0008 (80\%) & -0.0011 $\pm$ 0.0005 (80\%) & -0.0000 $\pm$ 0.0015 (40\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0.5 & adaptive\_mmd & 5 & -0.0062 $\pm$ 0.0012 (100\%) & -0.0039 $\pm$ 0.0007 (100\%) & -0.0003 $\pm$ 0.0018 (20\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0.5 & anisotropic\_mmd & 5 & -0.0067 $\pm$ 0.0009 (100\%) & -0.0042 $\pm$ 0.0005 (100\%) & -0.0016 $\pm$ 0.0014 (80\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0.5 & mmd\_rff & 5 & -0.0069 $\pm$ 0.0008 (100\%) & -0.0042 $\pm$ 0.0004 (100\%) & -0.0023 $\pm$ 0.0010 (100\%) \\
+    paper\_heterogeneous\_regression & 3750 & 0.5 & sliced\_wasserstein & 5 & -0.0050 $\pm$ 0.0007 (100\%) & -0.0031 $\pm$ 0.0004 (100\%) & -0.0010 $\pm$ 0.0007 (80\%) \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}
