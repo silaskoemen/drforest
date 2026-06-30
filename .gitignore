@@ -11,6 +11,10 @@ __pycache__
 plans
 explore/
 
+# Agent instructions
+.claude/
+AGENTS.md
+
 # Fetched/derived datasets (materialised by benchmarks/data/fetch_mtr.py)
 /data/
 
@@ -107,3 +111,5 @@ examples/m5/*
 *.out
 *.dvi
 *.gz
+*.fdb_latexmk
+*.fls
