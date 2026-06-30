@@ -2,7 +2,12 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{amsmath,amssymb}
+\usepackage{amsthm}
 \usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
 \usepackage{graphicx}
 \usepackage{adjustbox}
 \usepackage{hyperref}
@@ -86,14 +91,21 @@ splitting replaces $Y$ by a complex feature map $\psi(Y)$ and scores
         - \frac{1}{n_R}\sum_{i\in R}\psi(Y_i) \right\|^2 .
 \]
 With enough features and enough data this score can detect changes beyond the
-mean.  At finite sample sizes it also spends split-selection capacity on noisy
-higher-order coordinates.
+mean.  The two scores share an exact finite-sample structure: each is a biased
+squared mean-embedding statistic whose expectation is the population separation
+plus an $O(n^{-1})$ noise floor set by the embedded-response covariance
+(Appendix~\ref{app:finite}).  The embedding, not the form of the statistic, is
+all that changes between CART and MMD.
 
 This suggests the working characterization tested below.  CART concentrates on
 the dominant location signal.  MMD spreads sensitivity across location and
-higher-order distributional structure.  MMD should win only when the additional
+higher-order distributional structure.  At finite node sizes the usefulness of
+distributional splitting is governed by the kernel-mean contrast relative to the
+covariance of the embedded response, together with random-feature and
+split-search noise; universal kernel sensitivity does not imply high split-time
+power for every alternative.  MMD should therefore win only when the additional
 structure is strong enough, or the sample size large enough, for its split-time
-signal-to-noise ratio to exceed the cost of estimating it.
+signal-to-noise ratio to exceed the cost of estimating it (Appendix~\ref{app:finite}).
 
 We compare five criteria: CART; isotropic Gaussian RFF MMD (\texttt{mmd\_rff});
 diagonal-bandwidth MMD (\texttt{anisotropic\_mmd}); an overcomplete RFF pool with
@@ -222,9 +234,17 @@ themselves.
 
 For research, the next useful theory is not a generic dominance theorem.  The
 useful object is a finite-sample comparison of split-score signal-to-noise: mean
-separation versus kernel mean separation under local alternatives.  Such a
-calculation would turn the empirical characterization above into a sharp
-threshold statement.
+separation versus kernel mean separation under local alternatives.
+Appendix~\ref{app:finite} carries this out for a single fixed split and shows
+that the location-shift mechanism is visible to both criteria, whereas the
+mean-preserving scale, shape, and dependence mechanisms have zero population
+mean contrast but positive Gaussian-kernel contrast.  This matches the
+qualitative visibility pattern in the experiments.  What remains genuinely hard
+is lifting this fixed-split calculation to the adaptive maximization over
+correlated cutpoints, the
+per-node random-feature resampling, and the forest aggregation that ultimately
+determines CRPS or energy risk; that is where a sharp threshold statement, as
+opposed to a mechanism, would have to come from.
 
 \section{Limitations}
 
@@ -235,6 +255,223 @@ small number of mechanisms and one real benchmark, and a broader multivariate
 suite would strengthen the positive side of the characterization.
 
 \appendix
+\section{Finite-Node Analysis of Split Scores}
+\label{app:finite}
+
+This appendix collects the tractable theory behind the signal-allocation
+characterization.  Throughout we fix a single node and a single candidate split
+$L \mid R$, with $n$ observations, child sizes $n_L,n_R$, and balance
+$q = n_L/n$.  Conditional on the child memberships we treat the within-child
+responses as i.i.d.\ draws from the two child laws; this is a fixed-split
+statement, not a statement about the cutpoint actually selected by maximizing the
+score, and the gap between the two is part of what makes a sharp threshold
+result hard (Remark~\ref{rem:hard}).
+
+For the RFF criterion, all statements below condition on the sampled frequencies
+and on the forest-level bandwidth.  We identify the complex feature vector in
+$\mathbb C^B$ with its real representation in $\mathbb R^{2B}$ when invoking
+covariances and Gaussian limits.
+
+Let $g(\cdot)$ denote the response embedding scored by the criterion: $g(Y)=Y$
+for CART, and $g(Y)=B^{-1/2}\psi_B(Y)$ for the normalized $B$-feature RFF map, so
+that $\|g\|$ is bounded and the MMD score below is the implemented one.  Write
+$\mu_{g,L},\mu_{g,R}$ for the child means of $g(Y)$, $C_L,C_R$ for its child
+covariance operators, and
+\[
+  \delta_g = \mu_{g,L}-\mu_{g,R},
+  \qquad
+  G_g = q(1-q)\,\|\delta_g\|^2 .
+\]
+Both criteria score the same biased squared mean-embedding statistic, differing
+only through $g$:
+\[
+  \widehat G_g = q(1-q)\,\bigl\|\bar g_L - \bar g_R\bigr\|^2,
+  \qquad
+  \bar g_L = \tfrac{1}{n_L}\!\sum_{i\in L} g(Y_i),\quad
+  \bar g_R = \tfrac{1}{n_R}\!\sum_{i\in R} g(Y_i).
+\]
+
+\subsection{Exact finite-sample expectation}
+
+\begin{proposition}\label{prop:exp}
+Conditional on the child sizes,
+\[
+  \mathbb E\bigl[\widehat G_g\bigr]
+  = G_g
+  + \frac{(1-q)\operatorname{tr}(C_L) + q\operatorname{tr}(C_R)}{n} .
+\]
+\end{proposition}
+
+\begin{proof}
+The increment $\bar g_L-\bar g_R$ has mean $\delta_g$ and covariance
+$C_L/n_L + C_R/n_R$, so
+$\mathbb E\|\bar g_L-\bar g_R\|^2 = \|\delta_g\|^2 + \operatorname{tr}(C_L)/n_L +
+\operatorname{tr}(C_R)/n_R$.  Multiplying by $q(1-q)$ and using
+$q(1-q)/n_L=(1-q)/n$ and $q(1-q)/n_R=q/n$ gives the claim.
+\end{proof}
+
+Three consequences are worth stating. The population signal is $\|\delta_g\|^2$;
+the score carries an $O(n^{-1})$ noise floor; and when the two children share a
+law ($C_L=C_R=C$) that floor is $\operatorname{tr}(C)/n$ regardless of split
+balance.  CART and MMD obey the same decomposition---only the embedding $g$, and
+hence $\operatorname{tr}(C_\bullet)$, changes.  This decomposition does not by
+itself explain the honesty comparison: honesty reduces the structure-sample
+size used to score splits while separating structure selection from leaf
+estimation.
+
+\subsection{Local quadratic-form limit and signal-to-noise}
+
+Assume finite second moments, $q_n\to q\in(0,1)$, and convergence of the child
+covariance operators.  Let $W_g = C_L/q + C_R/(1-q)$, the limiting $n$-scaled
+covariance of the increment.  A multivariate central limit theorem gives
+\[
+  \sqrt n\,\bigl((\bar g_L-\bar g_R) - \delta_g\bigr)
+  \;\Rightarrow\; \mathcal N(0, W_g).
+\]
+Under the local alternative $\delta_{g,n}=h_g/\sqrt n$,
+\[
+  n\,\widehat G_g \;\Rightarrow\; q(1-q)\,\|Z_g + h_g\|^2,
+  \qquad Z_g \sim \mathcal N(0,W_g) .
+\]
+Setting $h_g=0$ recovers the null: for CART ($g(Y)=Y$, scalar) this is a scaled
+$\chi^2_1$, whereas for the finite-$B$ RFF embedding it is a weighted central
+quadratic form in Gaussians.  Under $h_g\ne0$ the corresponding local
+limit is generally noncentral.  Under the Gaussian approximation a natural
+fixed-split signal-to-noise
+ratio follows from $\mathbb E\|Z\|^2=\|\delta\|^2+\operatorname{tr}\Sigma$ and
+$\operatorname{Var}\|Z\|^2 = 2\operatorname{tr}(\Sigma^2)+4\delta^\top\Sigma\delta$
+with $\Sigma=W_g/n$:
+\[
+  \operatorname{SNR}_g
+  \;\approx\;
+  \frac{\|\delta_g\|^2}
+       {\sqrt{\,4\langle \delta_g, W_g\,\delta_g\rangle/n
+              + 2\|W_g\|_{\mathrm{HS}}^2/n^2\,}} .
+\]
+This formalizes signal allocation correctly: power depends on the embedding
+contrast $\|\delta_g\|^2$ relative to the covariance geometry $W_g$ of the
+embedded response, not on a bare count of feature coordinates.  A normalized
+bounded kernel does not incur an automatic dimension penalty.
+
+\subsection{Two-regime visibility and the synthetic mechanisms}
+
+\begin{proposition}\label{prop:visibility}
+Suppose that, within the node, each side is a mixture of the same two fixed laws
+$P_0,P_1$ with regime proportions $\alpha_L,\alpha_R$.  Writing
+$m_{g,i}=\mathbb E_{P_i}[g]$,
+\[
+  \delta_g = (\alpha_L-\alpha_R)\,(m_{g,1}-m_{g,0}),
+  \qquad
+  G_g = q(1-q)\,(\alpha_L-\alpha_R)^2\,\|m_{g,1}-m_{g,0}\|^2 .
+\]
+\end{proposition}
+
+The cutpoint-dependent factor $q(1-q)(\alpha_L-\alpha_R)^2$ is shared by every
+embedding; criteria differ only through the constant $\|m_{g,1}-m_{g,0}\|^2$.
+Hence every embedding that can see $P_0\neq P_1$ induces the \emph{same}
+population ranking over cutpoints, up to that constant.  CART's constant is
+$\|\mathbb E_{P_1}Y-\mathbb E_{P_0}Y\|^2$ and vanishes exactly when the two
+regimes share a mean.  On \texttt{paper\_quantile\_1}, a pure
+location shift, CART and MMD share population signal and any difference is
+finite-sample.  On \texttt{paper\_quantile\_2} (equal means, scale
+$1\!\to\!2$), \texttt{paper\_quantile\_3} (Gaussian vs.\ exponential, both unit
+mean), CART's population contrast is exactly zero while the Gaussian-kernel
+contrast is positive.
+
+The copula mechanism is not a two-regime model: its conditional law varies
+continuously with $X_1\sim\operatorname{Unif}(0,1)$.  Nevertheless, any interior
+cut $X_1=t$ has zero child-mean contrast, while for distinct response coordinates
+$j\ne k$ the child covariances are
+$\operatorname{Cov}(Y_j,Y_k\mid X_1\le t)=t/2$ and
+$\operatorname{Cov}(Y_j,Y_k\mid X_1>t)=(1+t)/2$.  Thus the joint child laws
+differ, and their exact Gaussian-kernel MMD is positive.
+
+\begin{table}[h]
+  \centering
+  \caption{Population split visibility for the synthetic diagnostics.  The
+  quantile mechanisms change regime at $X_1=0$; the copula result holds at any
+  interior cut $X_1=t\in(0,1)$.  ``Mean'' is the CART contrast
+  $\|\delta_Y\|$ and ``kernel'' is the exact Gaussian-MMD contrast.}
+  \label{tab:signal}
+  \begin{tabular}{lccc}
+    \toprule
+    mechanism & distributional change & mean signal & kernel signal \\
+    \midrule
+    \texttt{paper\_quantile\_1} & $\mathcal N(0.8,1)$ vs.\ $\mathcal N(0,1)$ & yes & yes \\
+    \texttt{paper\_quantile\_2} & $\mathcal N(0,4)$ vs.\ $\mathcal N(0,1)$ & $0$ & yes \\
+    \texttt{paper\_quantile\_3} & $\mathrm{Exp}(1)$ vs.\ $\mathcal N(1,1)$ & $0$ & yes \\
+    \texttt{paper\_copula} & corr.\ $X_1$, fixed $\mathcal N(0,1)$ marginals & $0$ & joint only \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+For the Gaussian kernel $k(y,y')=\exp\{-(y-y')^2/2\sigma^2\}$ the first two
+scalar contrasts are closed-form, using
+$\mathbb E_{\mathcal N(m,v)}\exp\{-U^2/2\sigma^2\}=
+\frac{\sigma}{\sqrt{\sigma^2+v}}\exp\{-m^2/2(\sigma^2+v)\}$:
+\[
+  \mmd^2\bigl\{\mathcal N(0,1),\mathcal N(0.8,1)\bigr\}
+  = \frac{2\sigma}{\sqrt{\sigma^2+2}}
+    \left[1-\exp\!\left\{-\frac{0.8^2}{2(\sigma^2+2)}\right\}\right],
+\]
+\[
+  \mmd^2\bigl\{\mathcal N(0,1),\mathcal N(0,4)\bigr\}
+  = \frac{\sigma}{\sqrt{\sigma^2+2}}
+  + \frac{\sigma}{\sqrt{\sigma^2+8}}
+  - \frac{2\sigma}{\sqrt{\sigma^2+5}} ,
+\]
+which are exactly the \texttt{paper\_quantile\_1} and \texttt{paper\_quantile\_2}
+splits.  Both are strictly positive for every bandwidth $\sigma$: the first
+confirms that both criteria see the location shift, while the second retains
+kernel signal despite a zero CART contrast.
+
+\subsection{What a uniform bound can and cannot give}
+
+Fix the bandwidth and condition on the predictor-derived candidate grid.  For a
+finite candidate set $\mathcal S$, let $G_k(s)$ be the exact-kernel population
+score and $\widehat G_B(s)$ the empirical RFF score.  Bounded-feature
+concentration and a union bound over $\mathcal S$ yield a uniform control of
+schematic form
+\[
+  \sup_{s\in\mathcal S}\bigl|\widehat G_B(s)-G_k(s)\bigr|
+  \;\lesssim\;
+  \sqrt{\tfrac{\log(|\mathcal S|/\alpha)}{n_{\min}}}
+  + \tfrac{\log(|\mathcal S|/\alpha)}{n_{\min}}
+  + \sqrt{\tfrac{\log(|\mathcal S|/\alpha)}{B}},
+\]
+whose three terms are within-node response sampling, the quadratic remainder, and
+the random-feature approximation \citep{rahimi2007,gretton2012}.  On an event
+where the right-hand side is at most $\varepsilon$, the empirical maximizer has
+population regret at most $2\varepsilon$; if the unique population maximizer is
+separated from every competitor by more than $2\varepsilon$, it is recovered
+exactly.  The same argument gives informative-feature recovery when that margin
+separates the best informative split from all uninformative splits.  The bound
+captures minimum child size $n_{\min}$, the number of searched cutpoints
+$|\mathcal S|$, and the feature budget $B$.  We state it schematically because a
+sharp constant is not the point and is genuinely harder than the bound suggests
+(Remark~\ref{rem:hard}).
+
+\begin{remark}\label{rem:hard}
+A universal threshold at which MMD splitting overtakes CART is not available
+without heavily restricting the model.  There is no universal ordering: under a
+fixed-split homoskedastic Gaussian location alternative, the standardized mean
+difference is the likelihood-ratio statistic and CART is locally optimal.
+Under mean-preserving variance, shape, or dependence alternatives, CART has zero
+population contrast while an exact characteristic-kernel MMD has positive
+contrast; a fixed finite RFF map additionally requires that its sampled
+frequencies see the alternative.  Beyond this, tree building
+maximizes the score over strongly correlated cutpoints (so fixed-split SNR is not
+selection probability), the RFF frequencies are resampled per node, and the
+median bandwidth is estimated once from the training responses and held fixed
+for the forest.  Recursive splitting changes later node laws, and converting
+root-node selection power into final CRPS or energy risk requires analyzing the
+adaptive forest partition and its aggregation.  The original DRF
+analysis already supplies the RKHS--CART interpretation and whole-forest
+consistency \citep{cevid2022}, and fixed-$B$ RFF cannot support unrestricted
+consistency claims \citep{choi2024}; the contribution here is the exact
+finite-node comparison, not a dominance theorem.
+\end{remark}
+
 \section{Shrinkage Frontier}
 
 Post-hoc shrinkage of forest weights is a separate lever from the split
