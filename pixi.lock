@@ -4157,8 +4157,8 @@ packages:
   timestamp: 1765193243911
 - pypi: ./
   name: drforest
-  version: 0.0.0
-  sha256: c39f8f91dff0e59705d19ff2943add0429571fdf956d17232d5280ea8ad98f37
+  version: 0.1.0
+  sha256: 4bd82d708dc2f1ad83b4eee7292afcc08a82070c3919ec9f102d5477332ecfab
   requires_dist:
   - numpy>=1.26
   - scipy>=1.11
