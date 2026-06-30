@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/drforest_logo.png" width="50%" alt="drforest logo">
+  <img src="https://raw.githubusercontent.com/silaskoemen/drforest/main/assets/drforest_logo.png" width="50%" alt="drforest logo">
 </p>
 
 # drforest
 
 [![CI](https://img.shields.io/github/actions/workflow/status/silaskoemen/drforest/ci.yml?style=flat-square&branch=main)](https://github.com/silaskoemen/drforest/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue?style=flat-square)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](https://github.com/silaskoemen/drforest/blob/main/LICENSE)
 
 `drforest` is a Python and Rust implementation of distributional random forests.
 Instead of returning a single prediction, a fitted forest produces a sparse,
@@ -33,7 +33,7 @@ regime required by the asymptotic forest theory. Missing-value handling is not
 implemented.
 
 The accompanying characterization note is available as a
-[repository PDF](paper/main.pdf). It studies when distributional splitting helps,
+[repository PDF](https://github.com/silaskoemen/drforest/blob/main/paper/main.pdf). It studies when distributional splitting helps,
 compares the implemented criteria, and gives a finite-node analysis of mean versus
 kernel-mean split signal. An arXiv link and formal citation will be added after the
 note is posted.
@@ -130,7 +130,7 @@ responses; random Fourier frequencies are resampled per node.
 
 ## Benchmarks and paper
 
-Study entry points live in [`benchmarks/studies`](benchmarks/studies):
+Study entry points live in [`benchmarks/studies`](https://github.com/silaskoemen/drforest/tree/main/benchmarks/studies):
 
 ```bash
 pixi run python benchmarks/studies/run_synthetic_splitting.py
@@ -141,7 +141,7 @@ pixi run python benchmarks/studies/run_real_benchmark.py \
 ```
 
 Generated datasets and result files are intentionally not tracked. The tables and
-figures used by the note are committed under [`paper`](paper), together with the
+figures used by the note are committed under [`paper`](https://github.com/silaskoemen/drforest/tree/main/paper), together with the
 LaTeX source and compiled PDF.
 
 ## Development
@@ -164,7 +164,7 @@ pixi run check-wheel
 ```
 
 Security issues should be reported through the process described in
-[`SECURITY.md`](SECURITY.md).
+[`SECURITY.md`](https://github.com/silaskoemen/drforest/blob/main/SECURITY.md).
 
 ## Citation
 
@@ -174,4 +174,4 @@ results remain reproducible.
 
 ## License
 
-`drforest` is released under the [MIT License](LICENSE).
+`drforest` is released under the [MIT License](https://github.com/silaskoemen/drforest/blob/main/LICENSE).

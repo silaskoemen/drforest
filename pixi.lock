@@ -6667,7 +6667,7 @@ packages:
 - pypi: ./
   name: drforest
   version: 0.1.0
-  sha256: 4bd82d708dc2f1ad83b4eee7292afcc08a82070c3919ec9f102d5477332ecfab
+  sha256: 09c612d0b4056f8fcc0bcb182ae327dcf8b6d214500d1de00298def4efea4b27
   requires_dist:
   - numpy>=1.26
   - scipy>=1.11
