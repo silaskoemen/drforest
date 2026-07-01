@@ -34,7 +34,6 @@ from drforest.datasets import load_dataset
 from drforest.features.rff import median_heuristic, sample_rff
 from drforest.forest import DistributionalRandomForest
 from drforest.shrinkage import marginal_target
-from drforest.tree import TreeParams
 from drforest.weights import embedding_norm_sq, mmd_to_target, n_eff
 
 DIAGNOSTIC_NAME = "diagnose_alpha"
@@ -82,14 +81,22 @@ def run(
         criterion_factory=lambda Y: MmdRffCriterion.from_data(
             Y, n_features=n_features, bandwidth_rule=median_heuristic
         ),
-        seed=seed,
-        n_trees=n_trees,
+        random_state=seed,
+        n_estimators=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(min_samples_leaf=5, alpha=0.05, honesty_fraction=0.5, colsample=0.7),
+        min_samples_leaf=5,
+        alpha=0.05,
+        honesty_fraction=0.5,
+        colsample=0.7,
     ).fit(X_train, Y_train)
 
-    W = forest.weights(X_test)
-    rff = sample_rff(Y_train.shape[1], shrink_features, median_heuristic(Y_train), np.random.default_rng(seed + 1))
+    W = forest.predict_weights(X_test)
+    rff = sample_rff(
+        Y_train.shape[1],
+        shrink_features,
+        median_heuristic(Y_train),
+        np.random.default_rng(seed + 1),
+    )
 
     norm_sq = embedding_norm_sq(W, Y_train, rff)  # ‖μ̂‖²
     var_scale = np.maximum(1.0 - norm_sq, 0.0)  # tr Σ_φ estimate

@@ -27,7 +27,6 @@ from drforest.forest import DistributionalRandomForest
 from drforest.metrics import componentwise_crps, mean_energy_score, rmse
 from drforest.shrinkage import shrink
 from drforest.targets import weighted_mean
-from drforest.tree import TreeParams
 
 STUDY_NAME = "run_shrinkage_frontier"
 
@@ -58,14 +57,22 @@ def _one_run(data, *, seed: int, n_trees: int, n_features: int, shrink_features:
         criterion_factory=lambda Y: MmdRffCriterion.from_data(
             Y, n_features=n_features, bandwidth_rule=median_heuristic
         ),
-        seed=seed,
-        n_trees=n_trees,
+        random_state=seed,
+        n_estimators=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(min_samples_leaf=5, alpha=0.05, honesty_fraction=0.5, colsample=0.7),
+        min_samples_leaf=5,
+        alpha=0.05,
+        honesty_fraction=0.5,
+        colsample=0.7,
     ).fit(X_train, Y_train)
 
-    W = forest.weights(X_test)
-    rff = sample_rff(Y_train.shape[1], shrink_features, median_heuristic(Y_train), np.random.default_rng(seed + 1))
+    W = forest.predict_weights(X_test)
+    rff = sample_rff(
+        Y_train.shape[1],
+        shrink_features,
+        median_heuristic(Y_train),
+        np.random.default_rng(seed + 1),
+    )
     result = shrink(W, Y_train, rff=rff)
     return {
         "seed": seed,
@@ -101,7 +108,11 @@ def run(
 
     for r in range(repeats):
         run_result = _one_run(
-            data, seed=seed + r, n_trees=n_trees, n_features=n_features, shrink_features=shrink_features
+            data,
+            seed=seed + r,
+            n_trees=n_trees,
+            n_features=n_features,
+            shrink_features=shrink_features,
         )
         raw = cast(dict[str, float], run_result["raw"])
         shrunk = cast(dict[str, float], run_result["marginal_kmse"])
@@ -156,7 +167,12 @@ def run(
             "n_features": n_features,
             "shrink_features": shrink_features,
         },
-        "dataset": {"name": data.name, "n": int(data.X.shape[0]), "p": int(data.X.shape[1]), "d": int(data.Y.shape[1])},
+        "dataset": {
+            "name": data.name,
+            "n": int(data.X.shape[0]),
+            "p": int(data.X.shape[1]),
+            "d": int(data.Y.shape[1]),
+        },
         "runs": runs,
         "summary": summary,
         "alpha": {
@@ -175,10 +191,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", default="enb")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--repeats", type=int, default=5, help="number of train/test splits to average over")
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=5,
+        help="number of train/test splits to average over",
+    )
     parser.add_argument("--n-trees", type=int, default=200)
     parser.add_argument("--n-features", type=int, default=200, help="RFF count for the split criterion")
-    parser.add_argument("--shrink-features", type=int, default=1000, help="RFF count for shrinkage intensity")
+    parser.add_argument(
+        "--shrink-features",
+        type=int,
+        default=1000,
+        help="RFF count for shrinkage intensity",
+    )
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--no-write-json", action="store_true")
     args = parser.parse_args()

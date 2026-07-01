@@ -40,7 +40,6 @@ from drforest.forest import DistributionalRandomForest
 from drforest.metrics import componentwise_crps, mean_energy_score, rmse
 from drforest.shrinkage import parent_target, shrink, shrink_to_target
 from drforest.targets import weighted_mean
-from drforest.tree import TreeParams
 from drforest.weights import assemble_weights
 
 CRITERIA = ("cart", "mmd_rff", "sliced_wasserstein")
@@ -85,11 +84,14 @@ def _rho_bar(predictions: np.ndarray) -> float:
 
 
 def _washout(
-    forest: DistributionalRandomForest, X_test: np.ndarray, Y_train: np.ndarray, Y_test: np.ndarray
+    forest: DistributionalRandomForest,
+    X_test: np.ndarray,
+    Y_train: np.ndarray,
+    Y_test: np.ndarray,
 ) -> dict[str, Any]:
     tree_scores = []
     tree_predictions = []
-    for tree in forest.trees:
+    for tree in forest.estimators_:
         W_tree = assemble_weights([tree], X_test, Y_train.shape[0])
         tree_scores.append(_scores(W_tree, Y_train, Y_test))
         tree_predictions.append(weighted_mean(W_tree, Y_train).reshape(-1))
@@ -156,27 +158,36 @@ def _one_run(
             adaptive_pool_features,
             adaptive_selected_features,
         ),
-        seed=seed,
-        n_trees=n_trees,
+        random_state=seed,
+        n_estimators=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(
-            min_samples_leaf=5,
-            alpha=0.05,
-            honesty_fraction=honesty_fraction,
-            colsample=0.7,
-            max_cutpoints=max_cutpoints,
-        ),
+        min_samples_leaf=5,
+        alpha=0.05,
+        honesty_fraction=honesty_fraction,
+        colsample=0.7,
+        max_cutpoints=max_cutpoints,
     ).fit(X_train, Y_train)
 
-    W = forest.weights(X_test)
-    rff = sample_rff(Y_train.shape[1], shrink_features, median_heuristic(Y_train), np.random.default_rng(seed + 1))
-    parent_weights = parent_target(forest.trees, X_test, W.shape[1])
+    W = forest.predict_weights(X_test)
+    rff = sample_rff(
+        Y_train.shape[1],
+        shrink_features,
+        median_heuristic(Y_train),
+        np.random.default_rng(seed + 1),
+    )
+    parent_weights = parent_target(forest.estimators_, X_test, W.shape[1])
 
     variants = {"raw": {"scores": _scores(W, Y_train, Y_test), "alpha_mean": 0.0}}
     for target in ("marginal", "parent"):
         for param in ("kmse", "stein"):
             if target == "parent":
-                result = shrink_to_target(W, Y_train, rff=rff, target_weights=parent_weights, parameterization=param)
+                result = shrink_to_target(
+                    W,
+                    Y_train,
+                    rff=rff,
+                    target_weights=parent_weights,
+                    parameterization=param,
+                )
             else:
                 result = shrink(W, Y_train, rff=rff, target=target, parameterization=param)
             variants[f"{target}_{param}"] = {
@@ -238,7 +249,7 @@ def run(
 
         for r in range(repeats):
             for criterion in CRITERIA:
-                logger.info(f"Run {r+1}/{repeats} | criterion {criterion}")
+                logger.info(f"Run {r + 1}/{repeats} | criterion {criterion}")
                 run_result = _one_run(
                     data,
                     criterion=criterion,
@@ -282,7 +293,11 @@ def run(
                         "criterion": criterion,
                         "variant": variant,
                         "metrics": {
-                            m: {"mean": float(np.mean(cell[m])), "std": float(np.std(cell[m]))} for m in METRICS
+                            m: {
+                                "mean": float(np.mean(cell[m])),
+                                "std": float(np.std(cell[m])),
+                            }
+                            for m in METRICS
                         },
                         "alpha_mean": float(a),
                     }
@@ -326,7 +341,11 @@ def main() -> None:
     parser.add_argument("--honesty-fraction", type=float, default=0.5)
     parser.add_argument("--sliced-projections", type=int, default=None)
     parser.add_argument("--adaptive-pool-features", type=int, default=None)
-    parser.add_argument("--adaptive-selected-features", type=int, default=DEFAULT_ADAPTIVE_SELECTED_FEATURES)
+    parser.add_argument(
+        "--adaptive-selected-features",
+        type=int,
+        default=DEFAULT_ADAPTIVE_SELECTED_FEATURES,
+    )
     parser.add_argument("--shrink-features", type=int, default=1000)
     parser.add_argument("--max-cutpoints", type=int, default=DEFAULT_MAX_CUTPOINTS)
     parser.add_argument("--all-cutpoints", action="store_true")

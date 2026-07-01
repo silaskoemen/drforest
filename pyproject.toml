@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "drforest"
 description = "Distributional Random Forests with different split metrics, test statistics and a Rust backend"
 authors = [{ name = "Silas Koemen", email = "research@silaskoemen.com" }]
-version = "0.1.0"
+version = "0.2.0"
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -24,7 +24,10 @@ dependencies = [
 ]
 
 [project.urls]
+homepage = "https://github.com/silaskoemen/drforest"
 repository = "https://github.com/silaskoemen/drforest"
+issues = "https://github.com/silaskoemen/drforest/issues"
+PyPI = "https://pypi.org/project/drforest/"
 
 [project.scripts]
 

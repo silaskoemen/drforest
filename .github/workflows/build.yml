@@ -81,9 +81,9 @@ jobs:
       - name: Test wheel
         shell: bash
         run: |
-          python -m pip install --no-deps --force-reinstall dist/*.whl
+          python -m pip install --force-reinstall dist/*.whl
           cd "$RUNNER_TEMP"
-          python -c "import drforest._drforest_core"
+          python -c "import numpy as np; from drforest import DistributionalRandomForest; X = np.arange(40.0).reshape(20, 2); y = X[:, 0]; model = DistributionalRandomForest(criterion='cart', n_estimators=2, subsample=1.0, min_samples_leaf=2, random_state=0).fit(X, y); assert model.predict(X[:3]).shape == (3,); assert model.predict_quantiles(X[:3], [0.5]).shape == (3, 1)"
       - name: Upload wheel
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

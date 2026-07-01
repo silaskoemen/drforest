@@ -11,7 +11,7 @@ from drforest.forest import DistributionalRandomForest
 from drforest.metrics import mean_crps, rmse
 from drforest.shrinkage import marginal_target, parent_target, shrink, shrink_to_target
 from drforest.targets import weighted_mean
-from drforest.tree import DecisionTree, TreeParams
+from drforest.tree import DecisionTree
 from drforest.weights import embedding_norm_sq, mmd_to_target, n_eff
 
 
@@ -110,16 +110,19 @@ def test_parent_shrink_preserves_simplex():
             n_features=48,
             bandwidth_rule=fixed_bandwidth(1.2),
         ),
-        seed=5,
-        n_trees=8,
+        random_state=5,
+        n_estimators=8,
         subsample=0.8,
-        tree_params=TreeParams(min_samples_leaf=5, alpha=0.02, honesty_fraction=0.5, colsample=1.0),
+        min_samples_leaf=5,
+        alpha=0.02,
+        honesty_fraction=0.5,
+        colsample=1.0,
     ).fit(dataset.X, dataset.Y)
     X_test = dataset.X[:20]
-    W = forest.weights(X_test)
+    W = forest.predict_weights(X_test)
     rff = _rff(dataset.Y, n_features=128, sigma=1.2, seed=9)
 
-    result = shrink(W, dataset.Y, rff=rff, target="parent", trees=forest.trees, X_test=X_test)
+    result = shrink(W, dataset.Y, rff=rff, target="parent", trees=forest.estimators_, X_test=X_test)
 
     got = result.weights.to_csr()
     assert got.shape == W.shape
@@ -135,17 +138,20 @@ def test_shrink_to_target_matches_parent_shrink_with_precomputed_target():
             n_features=48,
             bandwidth_rule=fixed_bandwidth(1.2),
         ),
-        seed=6,
-        n_trees=8,
+        random_state=6,
+        n_estimators=8,
         subsample=0.8,
-        tree_params=TreeParams(min_samples_leaf=5, alpha=0.02, honesty_fraction=0.5, colsample=1.0),
+        min_samples_leaf=5,
+        alpha=0.02,
+        honesty_fraction=0.5,
+        colsample=1.0,
     ).fit(dataset.X, dataset.Y)
     X_test = dataset.X[:20]
-    W = forest.weights(X_test)
+    W = forest.predict_weights(X_test)
     rff = _rff(dataset.Y, n_features=128, sigma=1.2, seed=10)
-    target = parent_target(forest.trees, X_test, W.shape[1])
+    target = parent_target(forest.estimators_, X_test, W.shape[1])
 
-    direct = shrink(W, dataset.Y, rff=rff, target="parent", trees=forest.trees, X_test=X_test)
+    direct = shrink(W, dataset.Y, rff=rff, target="parent", trees=forest.estimators_, X_test=X_test)
     precomputed = shrink_to_target(W, dataset.Y, rff=rff, target_weights=target)
 
     assert np.allclose(precomputed.alpha, direct.alpha)
@@ -274,18 +280,16 @@ def test_step7_mmd_rff_forest_raw_vs_marginal_shrinkage_signal():
             n_features=96,
             bandwidth_rule=fixed_bandwidth(1.2),
         ),
-        seed=12,
-        n_trees=18,
+        random_state=12,
+        n_estimators=18,
         subsample=0.7,
-        tree_params=TreeParams(
-            min_samples_leaf=6,
-            alpha=0.02,
-            honesty_fraction=0.5,
-            colsample=1.0,
-        ),
+        min_samples_leaf=6,
+        alpha=0.02,
+        honesty_fraction=0.5,
+        colsample=1.0,
     ).fit(X, Y)
     X_test, Y_test = X[:36], Y[:36]
-    W = forest.weights(X_test)
+    W = forest.predict_weights(X_test)
     rff = _rff(Y, n_features=384, sigma=1.2, seed=44)
 
     raw = {

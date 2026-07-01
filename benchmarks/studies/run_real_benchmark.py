@@ -26,7 +26,6 @@ from benchmarks.real_datasets import make_real_dataset
 from benchmarks.results_io import write_json_result
 from benchmarks.studies.run_ablation import _criterion_factory, _scores
 from drforest.forest import DistributionalRandomForest
-from drforest.tree import TreeParams
 
 STUDY_NAME = "run_real_benchmark"
 DEFAULT_DATASETS = ("diabetes",)
@@ -62,16 +61,14 @@ def _fit_and_score(
             adaptive_pool_features,
             adaptive_selected_features,
         ),
-        seed=model_seed,
-        n_trees=n_trees,
+        random_state=model_seed,
+        n_estimators=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(
-            min_samples_leaf=5,
-            alpha=0.05,
-            honesty_fraction=honesty_fraction,
-            colsample=0.7,
-            max_cutpoints=max_cutpoints,
-        ),
+        min_samples_leaf=5,
+        alpha=0.05,
+        honesty_fraction=honesty_fraction,
+        colsample=0.7,
+        max_cutpoints=max_cutpoints,
     )
 
     profiler = cProfile.Profile() if profile_output is not None else None
@@ -91,7 +88,7 @@ def _fit_and_score(
             stats.print_stats(80)
 
     start = time.perf_counter()
-    W = forest.weights(data.X_test)
+    W = forest.predict_weights(data.X_test)
     weight_time = time.perf_counter() - start
 
     scores = _scores(W, data.Y_train, data.Y_test)
@@ -110,8 +107,8 @@ def _fit_and_score(
         "max_cutpoints": max_cutpoints,
         "fit_time": fit_time,
         "weight_time": weight_time,
-        "n_leaves_mean": float(np.mean([tree.n_leaves for tree in forest.trees])),
-        "n_nodes_mean": float(np.mean([tree.n_nodes for tree in forest.trees])),
+        "n_leaves_mean": float(np.mean([tree.n_leaves for tree in forest.estimators_])),
+        "n_nodes_mean": float(np.mean([tree.n_nodes for tree in forest.estimators_])),
         "scores": scores,
     }
 
@@ -242,7 +239,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--datasets", nargs="+", default=list(DEFAULT_DATASETS))
     parser.add_argument("--criteria", nargs="+", default=list(DEFAULT_CRITERIA))
-    parser.add_argument("--honesty-fractions", nargs="+", type=float, default=list(DEFAULT_HONESTY_FRACTIONS))
+    parser.add_argument(
+        "--honesty-fractions",
+        nargs="+",
+        type=float,
+        default=list(DEFAULT_HONESTY_FRACTIONS),
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--repeats", type=int, default=10)
     parser.add_argument("--n-train", type=int, default=300)
@@ -253,7 +255,11 @@ def main() -> None:
     parser.add_argument("--all-cutpoints", action="store_true")
     parser.add_argument("--sliced-projections", type=int, default=None)
     parser.add_argument("--adaptive-pool-features", type=int, default=None)
-    parser.add_argument("--adaptive-selected-features", type=int, default=DEFAULT_ADAPTIVE_SELECTED_FEATURES)
+    parser.add_argument(
+        "--adaptive-selected-features",
+        type=int,
+        default=DEFAULT_ADAPTIVE_SELECTED_FEATURES,
+    )
     parser.add_argument("--results-dir", type=Path, default=None)
     parser.add_argument("--profile-dir", type=Path, default=None)
     parser.add_argument("--no-write-json", action="store_true")

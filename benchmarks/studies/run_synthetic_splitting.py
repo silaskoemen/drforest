@@ -26,11 +26,15 @@ from benchmarks.studies.run_ablation import (
 from drforest.datasets import load_dataset
 from drforest.forest import DistributionalRandomForest
 from drforest.targets import weighted_mean
-from drforest.tree import TreeParams
 from drforest.weights import assemble_weights
 
 STUDY_NAME = "run_synthetic_splitting"
-DEFAULT_DATASETS = ("paper_quantile_1", "paper_quantile_2", "paper_quantile_3", "paper_copula")
+DEFAULT_DATASETS = (
+    "paper_quantile_1",
+    "paper_quantile_2",
+    "paper_quantile_3",
+    "paper_copula",
+)
 DEFAULT_CRITERIA = ("cart", "mmd_rff", "sliced_wasserstein")
 METRICS = ("RMSE", "energy", "CRPS")
 DEFAULT_MAX_CUTPOINTS = 32
@@ -38,8 +42,8 @@ DEFAULT_ADAPTIVE_SELECTED_FEATURES = 32
 
 
 def _split_feature_counts(forest: DistributionalRandomForest) -> list[int]:
-    counts = np.zeros(forest.trees[0].n_features_in, dtype=np.int64)
-    for tree in forest.trees:
+    counts = np.zeros(forest.estimators_[0].n_features_in, dtype=np.int64)
+    for tree in forest.estimators_:
         internal = tree.feature[tree.feature >= 0]
         if internal.shape[0] == 0:
             continue
@@ -49,11 +53,14 @@ def _split_feature_counts(forest: DistributionalRandomForest) -> list[int]:
 
 
 def _washout(
-    forest: DistributionalRandomForest, X_test: np.ndarray, Y_train: np.ndarray, Y_test: np.ndarray
+    forest: DistributionalRandomForest,
+    X_test: np.ndarray,
+    Y_train: np.ndarray,
+    Y_test: np.ndarray,
 ) -> dict[str, Any]:
     tree_scores = []
     tree_predictions = []
-    for tree in forest.trees:
+    for tree in forest.estimators_:
         W_tree = assemble_weights([tree], X_test, Y_train.shape[0])
         tree_scores.append(_scores(W_tree, Y_train, Y_test))
         tree_predictions.append(weighted_mean(W_tree, Y_train).reshape(-1))
@@ -90,19 +97,17 @@ def _one_run(
             adaptive_pool_features,
             adaptive_selected_features,
         ),
-        seed=seed,
-        n_trees=n_trees,
+        random_state=seed,
+        n_estimators=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(
-            min_samples_leaf=5,
-            alpha=0.05,
-            honesty_fraction=honesty_fraction,
-            colsample=0.7,
-            max_cutpoints=max_cutpoints,
-        ),
+        min_samples_leaf=5,
+        alpha=0.05,
+        honesty_fraction=honesty_fraction,
+        colsample=0.7,
+        max_cutpoints=max_cutpoints,
     ).fit(X_train, Y_train)
 
-    W = forest.weights(X_test)
+    W = forest.predict_weights(X_test)
     return {
         "seed": seed,
         "criterion": criterion,
@@ -252,7 +257,11 @@ def main() -> None:
     parser.add_argument("--honesty-fractions", nargs="+", type=float, default=[0.5])
     parser.add_argument("--sliced-projections", type=int, default=None)
     parser.add_argument("--adaptive-pool-features", type=int, default=None)
-    parser.add_argument("--adaptive-selected-features", type=int, default=DEFAULT_ADAPTIVE_SELECTED_FEATURES)
+    parser.add_argument(
+        "--adaptive-selected-features",
+        type=int,
+        default=DEFAULT_ADAPTIVE_SELECTED_FEATURES,
+    )
     parser.add_argument("--max-cutpoints", type=int, default=DEFAULT_MAX_CUTPOINTS)
     parser.add_argument("--all-cutpoints", action="store_true")
     parser.add_argument("--results-dir", type=Path, default=None)

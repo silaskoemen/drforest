@@ -27,7 +27,6 @@ from drforest.metrics import componentwise_crps, mean_energy_score, rmse
 from drforest.mixture import MixtureWeights
 from drforest.shrinkage import marginal_target, parent_target
 from drforest.targets import weighted_mean
-from drforest.tree import TreeParams
 
 STUDY_NAME = "run_oracle_alpha"
 DEFAULT_DATASETS = ("enb", "shrinkage_toy", "paper_quantile_2")
@@ -71,22 +70,20 @@ def _one_run(
 
     forest = DistributionalRandomForest(
         criterion_factory=_criterion_factory(criterion, n_features),
-        seed=seed,
-        n_trees=n_trees,
+        random_state=seed,
+        n_estimators=n_trees,
         subsample=0.5,
-        tree_params=TreeParams(
-            min_samples_leaf=5,
-            alpha=0.05,
-            honesty_fraction=0.5,
-            colsample=0.7,
-            max_cutpoints=max_cutpoints,
-        ),
+        min_samples_leaf=5,
+        alpha=0.05,
+        honesty_fraction=0.5,
+        colsample=0.7,
+        max_cutpoints=max_cutpoints,
     ).fit(X_train, Y_train)
 
-    W = forest.weights(X_test)
+    W = forest.predict_weights(X_test)
     target_weights = {
         "marginal": marginal_target(W.shape[1]),
-        "parent": parent_target(forest.trees, X_test, W.shape[1]),
+        "parent": parent_target(forest.estimators_, X_test, W.shape[1]),
     }
     variants: dict[str, dict[str, Any]] = {"raw": {"scores": _scores(W, Y_train, Y_test), "alpha": 0.0}}
     for target in targets:
